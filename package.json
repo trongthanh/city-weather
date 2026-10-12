@@ -1,0 +1,19 @@
+{
+  "name": "city-weather",
+  "version": "1.0.0",
+  "description": "Procedural 3D city dioramas with realtime weather (three.js)",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview --host",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "dependencies": {
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "vite": "^8.3.4"
+  }
+}
