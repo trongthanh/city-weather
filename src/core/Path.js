@@ -130,3 +130,42 @@ export class Path {
     return Math.sqrt(best);
   }
 }
+
+/** Clip a sampled route to an x/z square, preserving heights and separate runs.
+ * Unlike point filtering, this retains exact edge intersections and never joins
+ * disconnected sections through outside space. Fully inside loops stay closed.
+ */
+export function clipPathToBounds(path, limit) {
+  if (path.points.every(p => Math.abs(p.x) <= limit && Math.abs(p.z) <= limit)) return [path];
+  const runs = [];
+  let run = [];
+  const flush = () => { if (run.length > 1) runs.push(run); run = []; };
+  const n = path.points.length, segments = path.closed ? n : n - 1;
+  for (let i = 0; i < segments; i++) {
+    const a = path.points[i], b = path.points[(i + 1) % n];
+    let enter = 0, exit = 1, hit = true;
+    for (const axis of ['x', 'z']) {
+      const delta = b[axis] - a[axis];
+      if (Math.abs(delta) < 1e-12) {
+        if (Math.abs(a[axis]) > limit) { hit = false; break; }
+      } else {
+        const t0 = (-limit - a[axis]) / delta, t1 = (limit - a[axis]) / delta;
+        enter = Math.max(enter, Math.min(t0, t1));
+        exit = Math.min(exit, Math.max(t0, t1));
+        if (enter >= exit) { hit = false; break; }
+      }
+    }
+    if (!hit) { flush(); continue; }
+    const p = a.clone().lerp(b, enter), q = a.clone().lerp(b, exit);
+    if (run.length && run.at(-1).distanceToSquared(p) > 1e-10) flush();
+    if (!run.length) run.push(p);
+    if (run.at(-1).distanceToSquared(q) > 1e-12) run.push(q);
+    if (exit < 1 - 1e-10) flush();
+  }
+  flush();
+  if (path.closed && runs.length > 1 && runs.at(-1).at(-1).distanceToSquared(runs[0][0]) < 1e-10) {
+    const last = runs.pop();
+    runs[0] = [...last, ...runs[0].slice(1)];
+  }
+  return runs.map(points => new Path(points, false)).filter(p => p.length > 1e-6);
+}

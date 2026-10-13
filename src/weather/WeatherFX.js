@@ -35,19 +35,20 @@ function ringTexture() {
   c.width = c.height = 64;
   const g = c.getContext('2d');
   g.strokeStyle = 'rgba(255,255,255,0.95)';
-  g.lineWidth = 5;
+  g.lineWidth = 6;
   g.beginPath(); g.arc(32, 32, 24, 0, Math.PI * 2); g.stroke();
   const t = new THREE.CanvasTexture(c);
   return t;
 }
 
 export class WeatherFX {
-  constructor(scene, { quality = 1 } = {}) {
+  constructor(scene, { quality = 1, mobile = false } = {}) {
     this.scene = scene;
     this.group = new THREE.Group();
     this.group.name = 'weatherFX';
     scene.add(this.group);
     this.quality = quality;
+    this.mobile = mobile;
     this.time = 0;
     this.windDir = new THREE.Vector2(1, 0.3).normalize();
     this.flash = 0;
@@ -101,6 +102,8 @@ export class WeatherFX {
     this.rainUniforms = {
       uTime: { value: 0 }, uWind: { value: new THREE.Vector2() }, uSpeed: { value: 16 },
       uLen: { value: 0.7 }, uWidth: { value: 0.022 }, uOpacity: { value: 0.5 }, uColor: { value: new THREE.Color('#dfe9f3') },
+      uTravel: { value: 0 }, uViewport: { value: new THREE.Vector2(1, 1) },
+      uMinPixels: { value: this.mobile ? 1.15 : 0.85 }, uEdgeColor: { value: new THREE.Color('#496d8a') },
       uArea: { value: 52 }, uHeight: { value: 26 },
     };
     const mat = new THREE.ShaderMaterial({
@@ -108,28 +111,45 @@ export class WeatherFX {
       transparent: true, depthWrite: false,
       vertexShader: `
         attribute vec4 aSeed;
-        uniform float uTime, uSpeed, uLen, uWidth, uArea, uHeight;
-        uniform vec2 uWind;
-        varying float vA;
-        void main(){
-          float fall = uSpeed * (0.8 + 0.4 * aSeed.w);
-          float y = mod(aSeed.z * uHeight - uTime * fall, uHeight) - 1.0;
+         uniform float uSpeed, uLen, uWidth, uArea, uHeight, uTravel, uMinPixels;
+         uniform vec2 uViewport;
+         uniform vec2 uWind;
+         varying float vA, vAcross;
+         void main(){
+           float fall = uSpeed * (0.8 + 0.4 * aSeed.w);
+           float y = mod(aSeed.z * uHeight - uTravel * (0.8 + 0.4 * aSeed.w), uHeight) - 1.0;
           vec3 vel = vec3(uWind.x, -fall, uWind.y);
           vec3 p = vec3(aSeed.x * uArea - uArea * 0.5, y, aSeed.y * uArea - uArea * 0.5);
           p.xz -= uWind * (y / fall);
           p.xz = mod(p.xz + uArea * 0.5, uArea) - uArea * 0.5;
           vec3 d = normalize(vel);
           vec3 tail = p - d * uLen;
-          vec3 pos = mix(tail, p, position.y);
-          vec3 toCam = normalize(cameraPosition - pos);
-          vec3 side = normalize(cross(d, toCam));
-          pos += side * position.x * uWidth;
-          vA = position.y * smoothstep(-1.0, 0.5, y) * (1.0 - smoothstep(uArea*0.42, uArea*0.5, length(p.xz)));
-          gl_Position = projectionMatrix * viewMatrix * vec4(pos, 1.0);
+           vec3 pos = mix(tail, p, position.y);
+           vec3 toCam = normalize(cameraPosition - pos);
+           vec3 side = cross(d, toCam);
+           side = dot(side, side) > 0.000001 ? normalize(side) : vec3(1.0, 0.0, 0.0);
+           vec4 clip = projectionMatrix * viewMatrix * vec4(pos, 1.0);
+           vec4 sideClip = projectionMatrix * viewMatrix * vec4(pos + side, 1.0);
+           vec2 pixels = (sideClip.xy / max(abs(sideClip.w), 0.001) - clip.xy / max(abs(clip.w), 0.001)) * uViewport * 0.5;
+           float perUnit = max(length(pixels), 0.001);
+           float width = max(uMinPixels, perUnit * uWidth);
+           clip.xy += pixels / perUnit * position.x * width * 2.0 / uViewport * clip.w;
+           // CSS-pixel width survives mobile adaptive DPR without a screen overlay.
+           // Square fade covers tile corners; very near-camera drops fade away.
+           float edge = max(abs(p.x), abs(p.z));
+           vA = (0.3 + 0.7 * position.y) * smoothstep(-1.0, 0.5, y) * (1.0 - smoothstep(uArea*0.42, uArea*0.5, edge));
+           vA *= smoothstep(1.0, 3.0, length(cameraPosition - pos));
+           vAcross = position.x * 2.0;
+           gl_Position = clip;
         }`,
       fragmentShader: `
-        uniform vec3 uColor; uniform float uOpacity; varying float vA;
-        void main(){ gl_FragColor = vec4(uColor, uOpacity * vA); }`,
+         uniform vec3 uColor, uEdgeColor; uniform float uOpacity; varying float vA, vAcross;
+         void main(){
+           float across = abs(vAcross);
+           float core = 1.0 - smoothstep(0.05, 0.55, across);
+           float softEdge = 1.0 - smoothstep(0.7, 1.0, across);
+           gl_FragColor = vec4(mix(uEdgeColor, uColor, core), uOpacity * vA * softEdge);
+         }`,
     });
     this.rain = new THREE.Mesh(quad, mat);
     this.rain.frustumCulled = false;
@@ -151,21 +171,22 @@ export class WeatherFX {
     }
     g.setAttribute('aSeed', new THREE.InstancedBufferAttribute(seeds, 4));
     g.instanceCount = 0;
-    this.splashUniforms = { uTime: { value: 0 }, uMap: { value: ringTexture() }, uOpacity: { value: 0.6 }, uY: { value: 0.1 } };
+    this.splashUniforms = { uTime: { value: 0 }, uMap: { value: ringTexture() }, uOpacity: { value: 0.6 }, uY: { value: 0.1 },
+      uRadius: { value: 0.26 }, uColor: { value: new THREE.Color('#abcde3') } };
     const mat = new THREE.ShaderMaterial({
       uniforms: this.splashUniforms, transparent: true, depthWrite: false,
       vertexShader: `
-        attribute vec4 aSeed; uniform float uTime, uY; varying vec2 vUv; varying float vA;
+         attribute vec4 aSeed; uniform float uTime, uY, uRadius; varying vec2 vUv; varying float vA;
         void main(){
           float ph = fract(uTime * aSeed.w + aSeed.z);
-          float s = 0.05 + ph * 0.22;
+           float s = 0.06 + ph * uRadius;
           vec3 p = vec3(aSeed.x, uY, aSeed.y) + position * s;
           vUv = uv; vA = 1.0 - ph;
           gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
         }`,
       fragmentShader: `
-        uniform sampler2D uMap; uniform float uOpacity; varying vec2 vUv; varying float vA;
-        void main(){ vec4 t = texture2D(uMap, vUv); gl_FragColor = vec4(vec3(0.9,0.95,1.0), t.a * vA * uOpacity); }`,
+         uniform sampler2D uMap; uniform float uOpacity; uniform vec3 uColor; varying vec2 vUv; varying float vA;
+         void main(){ vec4 t = texture2D(uMap, vUv); gl_FragColor = vec4(uColor, t.a * vA * uOpacity); }`,
     });
     this.splashes = new THREE.Mesh(g, mat);
     this.splashes.frustumCulled = false;
@@ -355,18 +376,28 @@ export class WeatherFX {
     }
 
     // rain
-    const rainAmt = Math.max(p.rain, 0);
-    this.rain.geometry.instanceCount = Math.floor(this.rainMax * Math.min(1, rainAmt));
+    const rainAmt = THREE.MathUtils.clamp(p.rain, 0, 1);
+    // Strengthen light precipitation without raising the maximum storm budget.
+    const rainDensity = Math.pow(rainAmt, this.mobile ? 0.68 : 0.72);
+    this.rain.geometry.instanceCount = Math.floor(this.rainMax * rainDensity);
     const wv = this.windDir.clone().multiplyScalar(wind * 12 + (p.vortex * 6));
-    Object.assign(this.rainUniforms.uTime, { value: t });
+    this.rainUniforms.uTime.value = t;
     this.rainUniforms.uWind.value.copy(wv);
-    this.rainUniforms.uSpeed.value = 14 + rainAmt * 6;
-    this.rainUniforms.uLen.value = 0.45 + rainAmt * 0.45 + wind * 0.3;
-    this.rainUniforms.uOpacity.value = 0.2 + rainAmt * 0.22;
-    this.rainUniforms.uColor.value.set(env.night > 0.5 ? '#9fb0c4' : '#e3ecf5');
+    this.rainUniforms.uSpeed.value = 8 + rainAmt * 12;
+    // Accumulated travel prevents speed changes from rephasing all drops at once.
+    this.rainUniforms.uTravel.value += dt * this.rainUniforms.uSpeed.value;
+    this.rainUniforms.uLen.value = 0.32 + rainAmt * 0.8 + wind * 0.18;
+    this.rainUniforms.uWidth.value = 0.022 + rainAmt * 0.012;
+    this.rainUniforms.uOpacity.value = (this.mobile ? 0.54 : 0.46) + rainAmt * 0.1 + env.night * 0.06;
+    this.rainUniforms.uViewport.value.set(Math.max(1, env.viewportWidth ?? 1280), Math.max(1, env.viewportHeight ?? 900));
+    this.rainUniforms.uColor.value.set(env.night > 0.5 ? '#d5ebfa' : '#bfd7e9');
+    this.rainUniforms.uEdgeColor.value.set(env.night > 0.5 ? '#7196b5' : '#496d8a');
     this.splashes.geometry.instanceCount = Math.floor(this.splashMax * Math.min(1, rainAmt * 1.2));
     this.splashUniforms.uTime.value = t;
     this.splashUniforms.uY.value = Math.max(0.1, env.waterLevel + 0.02);
+    this.splashUniforms.uRadius.value = (this.mobile ? 0.30 : 0.24) + rainAmt * 0.1;
+    this.splashUniforms.uOpacity.value = 0.40 + rainAmt * 0.18 + (this.mobile ? 0.08 : 0) + env.night * 0.05;
+    this.splashUniforms.uColor.value.set(env.night > 0.5 ? '#c7e1f4' : '#abcde3');
 
     // snow
     this.snow.geometry.setDrawRange(0, Math.floor(this.snowMax * p.snow));

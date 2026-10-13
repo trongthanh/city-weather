@@ -51,7 +51,7 @@ controls.autoRotateSpeed = 0.25;
 controls.target.set(0, 2.5, 0);
 
 const atmosphere = new Atmosphere(scene, renderer, { shadowSize: isMobile ? 1024 : 2048 });
-const fx = new WeatherFX(scene, { quality });
+const fx = new WeatherFX(scene, { quality, mobile: isMobile });
 const gale = new GaleFX(scene, { quality });
 const agents = new AgentSystem(scene, { scale: isMobile ? 0.65 : 1, shadows: !isMobile });
 
@@ -368,6 +368,7 @@ function frame() {
   const fxOut = fx.update(dt, cur, {
     night: atmosphere.night, day: atmosphere.day, waterLevel: waveUniforms.uLevel.value, pixelRatio,
     camPos: camera.position, camTarget: controls.target,
+    viewportWidth: innerWidth, viewportHeight: innerHeight,
     windAngle: d && state.mode === 'live' && d.windDir != null ? THREE.MathUtils.degToRad(d.windDir + 180) : null,
   });
   const atm = atmosphere.update(dt, {

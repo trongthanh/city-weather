@@ -22,7 +22,7 @@ npm run build
 npm run preview
 ```
 
-The working development URL has been `http://localhost:5199/`. Confirm the current server/port; reuse a working server rather than starting duplicates. Vite otherwise defaults to port 5173. Use the background shell tool for dev servers, builds/test batches and agent CLI runs. Don't edit generated `dist/` files.
+The working development URL has been `http://localhost:5199/`. Confirm the current server/port; reuse a working server rather than starting duplicates. Vite otherwise defaults to port 5173. Use the background shell tool for dev servers and builds/test batches. Don't edit generated `dist/` files.
 
 ## Source map
 
@@ -36,10 +36,12 @@ The working development URL has been `http://localhost:5199/`. Confirm the curre
 | `src/world/terrain.js` | Terrain/skirt/water meshes, water shader and shared wave function/uniforms |
 | `src/world/roads.js` | Roads/sidewalks, bridges, crossings, junctions, lamps and avenue trees |
 | `src/world/buildings.js`, `landmarks.js`, `trees.js` | Procedural geometry builders |
+| `src/world/facades.js` | Shallow framed/arched windows and shutter rows; shared face transforms across main/glass/lit |
+| `src/world/officeWindows.js` | Seeded individual office-window panes on flat and curved/faceted tower façades |
 | `src/world/materials.js` | Shared material groups, emissives, light pools, per-tree wind/shadow shaders |
 | `src/world/landmarkLighting.js` | Local-space fixtures/glowing details, transformed architectural spotlight records, dusk/night intensity updates |
 | `src/core/MeshBuilder.js` | Primitive cache, transform stacks, geometry normalization/merging |
-| `src/core/Path.js`, `rng.js` | Arc-length polyline paths, seeded RNG/noise |
+| `src/core/Path.js`, `rng.js` | Arc-length polyline paths, exact square-bound clipping with separate runs, seeded RNG/noise |
 | `src/agents/AgentSystem.js`, `models.js` | Instanced traffic, people/pets, river boats, beach agents, birds |
 | `src/agents/RoadTurn.js` | Smooth lane-to-lane Bézier connectors and distance-ahead helpers |
 | `src/weather/service.js`, `conditions.js` | Open-Meteo forecast/AQI, cache, condition presets/classification |
@@ -55,13 +57,19 @@ The working development URL has been `http://localhost:5199/`. Confirm the curre
 - Traffic is busiest around school/work start/end, sparse overnight. Preserve `trafficLevel()` and `streetLife()` rather than replacing them with constant counts.
 - Vehicles plan turns in advance, slow down, follow arc-length sampled connectors with matching headings and accelerate afterward. Don't restore instantaneous road switching/position-offset decay as the turning mechanism.
 - Keep clouds above the city; foreground clouds should remain semitransparent. Weather clouds are not architectural spotlight cones.
+- Rain streaks are instanced, camera-facing quads sized in **screen pixels**: clamp with `uMinPixels` (1.15 CSS px on mobile, 0.85 desktop) so light drizzle stays visible at low DPR/close framing, with a soft darker edge for contrast. Drizzle uses a `^0.68` density curve, slower fall (8+) and shorter streaks than heavy rain; fall phases use accumulated `uTravel`, never raw `uTime`, so speed ramps must not re-phase every drop. Very-near-camera drops fade out; splash rings scale with rain amount. Keep the maximum storm instance budget unchanged.
 - Mobile intentionally uses closer framing: `layout()` multiplies the fitting distance by **0.82**, allowing edge cropping. Preserve pinch zoom and desktop framing. Cropping varies with orbit angle; don't require the entire tile to fit.
 - The critical styled splash prevents unstyled first paint; preserve it when changing loading/UI.
+- Buildings must read well when orbited, not only from their road-facing entrance. Keep rear/side glazing, shutters and trim on houses, public-building wings and churches, especially the north-facing buildings whose backs face the default camera. Use shallow merged details rather than duplicated front porticos or new independent meshes. Added random façade decoration uses forked RNGs so it does not change the parent layout/roof/tree sequence.
+- Road `def.vehicles` is an optional vehicle-name allowlist, enforced both at spawning and turn planning. `speedLimit` limits road-agent speeds; preserve narrow-lane offsets and continuous connectors when adding motorcycle-only alleys.
+- Road/sidewalk ribbons must stop at the tile edges. Clip promenades with clearance for their **entire width**, and pedestrian routes with lateral/body clearance. Water terrain curves may extend past the tile, but visible boat routes stay inset by 1.2 to accommodate the full bow, drift and wave rotations; boats fade in/out inside that boundary. Use `clipPathToBounds()` instead of filtering points or joining disconnected route fragments.
 
 ### Hà Nội
 
 - Map-traced Hoàn Kiếm lake with shoreline-following routes, Tháp Rùa, Ngọc Sơn, Thê Húc and Tháp Bút.
 - Lăng Bác + Chùa Một Cột northwest, Văn Miếu southwest, Nhà Thờ Lớn between them; Opera House southeast.
+- Nhà Thờ Lớn stays at `(-15.4, -1.5)`, facing east, with **scale 1.5**, not the former oversized 2.4. Keep its small churchyard and two flanking east-west alleys at z≈−3.7 and +0.7, connecting the west tile edge to the lake ring. Each lane is 0.68 wide, has no broad sidewalks/frontage/avenue trees, allows **only motorbikes** (not cars, buses or cyclos) and has a 0.9 speed limit. Church geometry/footprint must clear both alleys.
+- Stone alley ribbon tops sit 0.015 below main-road asphalt so the lake-ring junctions do not z-fight; agent path heights remain unchanged for smooth turns. Red River boat lanes use offsets −3.0 and −1.8 on the visible western half of the river, not the former +0.6 route outside the eastern tile edge.
 - Red River is on the **east** edge and reddish-brown; the lake is jade-green. Water-bed and skirt colours must follow the nearest water body, not a single global water colour.
 - Old Quarter uses ochre French-colonial shophouses, villas and tiled tube houses, with white trim, shutters, balconies and abundant trees. Avoid reverting to generic midrise blocks.
 - Opera House (`operaHouse`) is at approximately `(11.1, 16.2)`, rotated by π and scaled 1.2. The default camera sees its **rear**. Preserve framed arched windows on all four façades, glazed entrance doors, porch lamps and nighttime glazing/uplights; front-only windows are insufficient.
@@ -71,9 +79,15 @@ The working development URL has been `http://localhost:5199/`. Confirm the curre
 - North-to-south order: **Đức Bà Cathedral → Bến Thành Market → Bitexco**. World north is negative z.
 - Cathedral around `(-11, -18.3)` stands in an open Công xã Paris square; keep generic buildings out of its block. Post office faces it across the street.
 - Bến Thành around `(-10.25, -6.7)` occupies most, but not all, of its block. Keep a forecourt, red gabled hall roofs, corner pavilions and enlarged clock-tower gate. No random buildings in its plaza.
-- Bitexco around `(-10.4, 7.8)` is in the garden block **directly south of the market**, as requested in the user's annotation. Don't move it back to the east-side riverside location without approval. Preserve the helipad and keep other buildings out of its block.
+- Bitexco around `(-10.4, 7.8)` is in the garden block **directly south of the market**, as requested in the user's annotation. Don't move it back to the east-side riverside location without approval. Preserve its prominent cantilevered helipad (3.4-wide deck with a large H and circular marking), reserve its full extent in the footprint, and keep other buildings out of its block.
 - Fewer generic skyscrapers, more parks/trees. Southwest corner and canal frontage should also contain shophouses, not only parkland.
+- Landmark 81, Bitexco and generic office towers use randomly occupied **individual window panes**, not entire emissive floors/rings. Architectural trim and crown accents are separate. Window sampling uses forked seeded RNGs; preserve the parent RNG draw sequence so window edits don't rearrange the rest of the city.
+- Landmark 81's main tower is a strongly stepped bundle: low outer shafts, intermediate shoulders, exposed slender square core and rectilinear crown/long square mast. Its podium stays unchanged; don't add surrounding apartment towers to this landmark.
+- The entire City Hall / Uncle Hồ statue block (between Đồng Khởi, Tôn Đức Thắng, Lê Duẩn and Lê Lợi) stays open public square, with City Hall, statue and promenade preserved. Its former 19-floor generic tower is pinned as `officeTower` in the far northwest lot at `(-19.5, -18.3)`, with original dimensions/seed. Don't restore random buildings in the civic block.
+- City Hall at `(3, -9.6)` spans the full civic-square frontage (11.5-wide façade in the 11.8-wide square) but stays long and low, as in the user's wider/fisheye reference. Architectural modules are scaled to 0.68, with **seven bays per outer wing** and a roughly 4.82-high clock-tower/flag, not the previous oversized 7.09-high monument with short wings. Preserve its yellow/cream two-storey arcades, inner twin terracotta-roofed pavilions, square central clock tower/lantern and flag. Its footprint includes roofs/steps but must leave the unscaled statue at `(3, -7.4)` and the promenade clear.
 - Preserve Khánh Hội Bridge and Nhà Rồng at the canal/river junction. `canalRow` is a procedural row of canal-front shophouses.
+- Bến Nhà Rồng keeps its position/rotation/scale, quay, red hip roof, ridge dragons and moon. Preserve framed arched glazing on all four elevations, including the land-side rear seen from the default camera, plus white pilasters/floor cornices and subtle nighttime panes; front-only window decoration is insufficient.
+- `canalRow` must push/pop each house frame on **main, glass and lit** together. Untransformed glazing previously created a floating window panel at `(0, 0.806)` on the south edge of the civic square; keep all panes attached to the north-facing canal-house façades.
 
 ### Đà Nẵng
 
@@ -105,8 +119,14 @@ npm run smoke &&
 node scripts/turncheck.mjs &&
 node scripts/beachcheck.mjs &&
 node scripts/lightcheck.mjs &&
-node scripts/operacheck.mjs
+node scripts/operacheck.mjs &&
+node scripts/officecheck.mjs
 ```
+
+For HCMC landmark/layout edits, also run `node scripts/hcmccheck.mjs` (City Hall long/low proportions/seven-bay wings, statue/sidewalk clearance and rotated material frames, attached canal glazing/no floating square panel, Landmark 81 silhouette/mast, preserved podium, exact office-tower relocation and no generated geometry in the civic square).
+
+For façade changes run `node scripts/facadecheck.mjs`; for the Hanoi cathedral/alleys or road-access changes run `node scripts/alleycheck.mjs` as well as the full batch above.
+For road/promenade or water-route boundary changes, also run `node scripts/boundscheck.mjs` (exact route clipping, actual ribbon vertices and full transformed boat hulls, not just centres).
 
 | Check | What it verifies / limitations |
 | --- | --- |
@@ -116,6 +136,11 @@ node scripts/operacheck.mjs
 | `node scripts/beachcheck.mjs` | Fair-weather beach activity, finite transforms/strings, water/tile bounds, river-only boats, two-sided kite normals, night/storm retirement and city switching. |
 | `node scripts/lightcheck.mjs` | Monument/statue/cathedral/Opera House spotlights; bounded counts, rotated/scaled coordinates, no additional shadows, noon-off/night-on/dusk transitions. |
 | `node scripts/operacheck.mjs` | Opera House glowing glazing on four façades, porch lamps, rotated/scaled bounds and balanced material transform stacks. |
+| `node scripts/officecheck.mjs` | Seeded random tower panes, lit/dark mix, no full-floor emissive strips/rings, curved panes split at profile bends, enlarged Bitexco helipad dimensions/attachment, balanced transforms and unchanged landmark parent RNG streams. |
+| `node scripts/facadecheck.mjs` | All seven procedural building styles and seven architectural landmarks have four-elevation glazing; normalized finite geometry, rotated material frames, Nhà Rồng wall bounds/roof icons. It does not prove every detail is unobscured in a rendered view. |
+| `node scripts/alleycheck.mjs` | Reduced Hanoi cathedral, two narrow lanes/ring junctions, church clearance, motorcycle-only spawning/turn access, finite bike positions and alley speed limit. Existing traffic tests still do not prove collision avoidance. |
+| `node scripts/boundscheck.mjs` | Exact edge intersections/interpolated heights, disconnected route fragments, closed inside loops, actual road/sidewalk/promenade geometry and full boat hulls at both route ends/directions/drift/wave levels. |
+| `node scripts/raincheck.mjs` | Rain uniform tuning: mobile/desktop drizzle streaks present, screen-pixel width clamp, heavy rain denser/faster/longer/more opaque, monotonic `uTravel`, splash rings. Headless — no rendered pixels. |
 
 For layout/landmark edits also run:
 
@@ -135,20 +160,15 @@ Headless scripts mock canvas/document for texture construction. They **do not re
 
 ## Browser verification — coordinator/subagent contract
 
-**User requirement: the coordinating agent must not run Chrome DevTools verification directly. Delegate it to a verifier, and run every verifier as a background task.**
+**User requirement: delegate browser verification to a background verifier subagent. The coordinating agent must not run Chrome DevTools verification directly.**
 
-- The user-selected verifier route is **OpenAI Luna 6**, CLI selector `--model openai/gpt-6-luna`. Do not silently substitute models; report route failures.
+- Use the available subagent tool for verification, not an agent CLI command. The user-selected verifier model is **OpenAI GPT-6 Luna** (`openai/gpt-6-luna`); discover its exact available model/variant before use, and report unavailability rather than silently substituting models. Do not inherit the coordinator's Sol model for QA.
+- Keep verification scoped to the changed features. A previous overbroad 37-screenshot Sol/high review took about 55 minutes; do not repeat a whole-site tour for a localized follow-up. Use bounded observation and a small evidence set, and report progress/blockers rather than repeatedly saying the verifier is still running.
 - If you are already the assigned browser verifier, perform the assigned Chrome checks yourself; do **not** recursively launch another verifier.
-- The inspect-only `bg_delegate` worker cannot run CLI tests or browser/network work. Use a background Pi CLI task for browser QA; ordinary shell test batches use `isAgent:false`, Pi child runs use `isAgent:true`.
-- Write the complete verifier prompt **before** launching the process. A parallel prompt-write/process-start race previously produced a meaningless completed task.
-- Example CLI command for a background Pi task (provide a unique, absolute prompt path):
-
-```sh
-pi -p --no-session --model openai/gpt-6-luna --thinking low "$(cat /tmp/city-weather-qa-TASK.txt)"
-```
-
+- Choose a verifier subagent with browser/network access; an inspect-only worker is not sufficient for browser QA.
+- Prepare the complete verifier prompt **before** starting the background subagent.
 - Include URL/port, exact scope, expected features, viewport, focus calls, unique screenshot directory, console/network checks, and required report format in the prompt. Don't rely on omitted conversation/tool output.
-- Wait for the terminal notification; don't poll status/logs or sleep just to wait. Retrieve output after notification. A process exit code of 0 is not itself a visual PASS.
+- Wait for the subagent completion notification; don't poll status/logs or sleep just to wait. Review its report after notification. Task completion alone is not a visual PASS.
 - Verifiers discover Chrome MCP schemas through `codemode`, and pass **`pageId` explicitly**. Each task creates its own page, does not close/navigate another task's page, and uses its own screenshot directory. Never delete/overwrite screenshots from another QA run.
 - If implementation changes while a review is running, treat pre-reload screenshots as potentially stale; get a fresh check when necessary.
 
@@ -182,10 +202,17 @@ window.__cw.focus(11.1, 16.2, 10, 1.3, 200, 35);
 // Other Hanoi and HCMC landmarks
 window.__cw.focus(-16.5, -11.6, 18, 2, 65, 40); // mausoleum
 window.__cw.focus(-15.4, -1.5, 14, 3, 65, 40);  // Hanoi cathedral
+window.__cw.focus(-15.4, -1.5, 24, 2, 65, 40); // smaller cathedral + both motorcycle-only alleys
 window.__cw.focus(-11, -18.3, 11, 2, 65, 40);   // Đức Bà
 window.__cw.focus(-10.25, -6.7, 16, 1.5);      // Bến Thành
 window.__cw.focus(-10.4, 7.8, 32, 8);          // tall Bitexco + helipad
+window.__cw.focus(3.2, -18.2, 70, 14, 25, 25); // entire Landmark 81 + mast (30-degree FOV)
+window.__cw.focus(3, -5.7, 36, 1.5, 25, 55);  // full City Hall / statue square
+window.__cw.focus(3, -9.6, 23, 1.6, 0, 25); // long/low City Hall front façade / clock tower
+window.__cw.focus(-15, -18.3, 45, 5, 25, 45); // northwest office tower + cathedral/road context
 window.__cw.focus(3, -7.4, 7, 0.6);           // HCMC statue
+window.__cw.focus(15.1, 20, 14, 1.2, 25, 30); // Nhà Rồng rear/default-facing glazing + dragons
+window.__cw.focus(15.1, 20, 14, 1.2, 200, 30); // Nhà Rồng waterfront/front
 window.__cw.focus(16, 4, 24, 2.3, 65, 35);     // Đà Nẵng beach
 ```
 

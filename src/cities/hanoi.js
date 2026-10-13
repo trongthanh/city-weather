@@ -57,6 +57,14 @@ export default {
     const N = near((p) => (p.z < 0 ? Math.abs(p.x - LX) : 99));
     const S = near((p) => (p.z > 0 ? Math.abs(p.x - LX - 1.6) : 99));
     const E = near((p) => (p.x > LX ? Math.abs(p.z) : 99));
+    // Two tiny east-west lanes flank the cathedral and join the west lake ring.
+    const cathedralAlleys = [-3.7, 0.7].map((az, i) => {
+      const end = near(p => p.x < LX ? Math.abs(p.z - az) : 99);
+      return { name: i === 0 ? 'Ngõ Nhà Thờ — bắc' : 'Ngõ Nhà Thờ — nam', kind: 'alley',
+        pts: [[-22, az], [-10.5, az], [end.x, end.z]], smooth: false,
+        hw: 0.34, sw: 0, vehicles: ['motorbike'], speedLimit: 0.9,
+        frontage: false, lamps: false, trees: 0, surfaceColor: '#8a8379' };
+    });
 
     const trees = [];
     const avoid = [[LX + 2.8, -7.9, 1.6], [LX + 3.75, -9.35, 1.0], [LX - 4.8, -8.6, 1.8]];
@@ -72,6 +80,7 @@ export default {
       ],
       islands: [{ x: LX - 0.52, z: 3.7, r: 0.95 }, { x: LX, z: -7.75, r: 1.55 }],
       parks: [{ type: 'poly', path: parkPoly }],
+      plazas: [{ x: -15.0, z: -1.5, w: 7.4, d: 3.8 }], // small churchyard between the alleys
       roads: [
         { name: 'ring', path: ring, trees: 0, lampSpacing: 5.5 },
         { pts: [[N.x, N.z], [N.x, -22]], smooth: false, trees: 2.6 },
@@ -80,6 +89,7 @@ export default {
         { name: 'Trần Quang Khải (đê sông Hồng)', pts: [[DYKE, -22], [DYKE, 22]], smooth: false, hw: 1.05, trees: 2.6, frontageSide: 1 },
         { pts: [[-22, -19.6], [DYKE, -19.6]], smooth: false, hw: 1.0, trees: 2.8 },
         { pts: [[-22, 19.6], [DYKE, 19.6]], smooth: false, hw: 1.0, trees: 2.8 },
+        ...cathedralAlleys,
       ],
       walkways: [{ path: prom, width: 0.6 }],
       landmarks: [
@@ -91,14 +101,16 @@ export default {
         { type: 'vanMieu', x: -17.0, z: 10.3, ry: 0, footprint: { type: 'rect', w: 6.4, d: 15.4 } },
         { type: 'hcmMausoleum', x: -16.5, z: -11.6, ry: Math.PI / 2, footprint: { type: 'rect', w: 10.0, d: 9.4 } },
         { type: 'oneLegPagoda', x: -10.9, z: -15.4, scale: 2.2, footprint: { type: 'circle', r: 2.5 } },
-        { type: 'stJoseph', x: -15.4, z: -1.5, ry: Math.PI / 2, scale: 2.4, footprint: { type: 'rect', w: 5.8, d: 10.0, x: -14.8 } },
+        { type: 'stJoseph', x: -15.4, z: -1.5, ry: Math.PI / 2, scale: 1.5, footprint: { type: 'rect', w: 3.4, d: 6.8, x: -15.05 } },
         { type: 'operaHouse', x: 11.1, z: 16.2, ry: Math.PI, scale: 1.2, footprint: { type: 'rect', w: 5.1, d: 4.5, z: 15.75 } },
         { type: 'chuongDuongBridge', x0: DYKE + 1.4, x1: 22, z: E.z },
       ],
       trees,
       waterways: [
-        { kind: 'boat', pts: RED_RIVER.map(([x, z]) => [x - 1.6, z]) },
-        { kind: 'boat', pts: RED_RIVER.map(([x, z]) => [x + 0.6, z]) },
+        // Both lanes use the visible western half of the Red River; the river
+        // itself extends east of the tile, but boat hulls must remain inside it.
+        { kind: 'boat', pts: RED_RIVER.map(([x, z]) => [x - 3.0, z]) },
+        { kind: 'boat', pts: RED_RIVER.map(([x, z]) => [x - 1.8, z]) },
       ],
     };
   },

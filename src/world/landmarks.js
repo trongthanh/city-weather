@@ -2,6 +2,10 @@ import * as THREE from 'three';
 import { P, hipRoof, normalizeGeometry } from '../core/MeshBuilder.js';
 import { WATER_LEVEL, BED } from './Field.js';
 import { addTree } from './trees.js';
+import { officeWindowRow, curvedOfficeWindowRow } from './officeWindows.js';
+import { tower } from './buildings.js';
+import { RNG } from '../core/rng.js';
+import { facadeWindow, facadeRows } from './facades.js';
 
 // Hand-modelled (but still fully procedural) city icons.
 // Signature: fn(B, ctx) with ctx = { x, z, ry, rng, field, ...extra }
@@ -54,6 +58,9 @@ export function ngocSonTemple(B, { x, z, ry = 0, rng }) {
   const hall = (hx, hz, w, d, h) => {
     B.main.box(hx, 0, hz, w + 0.2, 0.1, d + 0.2, '#cfc7b6');
     B.main.box(hx, 0.1, hz, w, h, d, wall);
+    // Wooden shutter panels, rather than office glazing, on the temple elevations.
+    for (const face of [-1, 1]) for (const u of [-0.3, 0.3]) B.main.quad(hx + u, 0.1 + h * 0.48, hz + face * (d / 2 + 0.008), 0.18, h * 0.65, col, face > 0 ? 0 : Math.PI);
+    for (const face of [-1, 1]) B.main.quad(hx + face * (w / 2 + 0.008), 0.1 + h * 0.48, hz, 0.22, h * 0.65, col, face * Math.PI / 2);
     for (let i = 0; i < 4; i++) B.main.cyl(hx - w / 2 + 0.1 + (i * (w - 0.2)) / 3, 0.1, hz + d / 2 + 0.1, 0.035, h, col, 6);
     B.main.put(P.flaredRoof(), roof, { x: hx, y: 0.1 + h, z: hz, sx: w + 0.6, sy: 0.55, sz: d + 0.5 });
     B.main.put(P.box(), '#e0b04a', { x: hx, y: 0.1 + h + 0.2, z: hz, sx: w * 0.9, sy: 0.05, sz: 0.05 });
@@ -249,6 +256,7 @@ export function danangCathedral(B, { x, z, ry = 0 }) {
   const pink = '#ef9fb5', trim = '#fbe9ee', roof = '#d67b93';
   B.main.push(x, 0, z, ry);
   B.glass.push(x, 0, z, ry);
+  B.lit.push(x, 0, z, ry);
   B.main.box(0, 0, -0.6, 1.6, 1.3, 3.2, pink);
   B.main.put(P.prism(), roof, { y: 1.3 + 0.32, z: -0.6, sx: 1.75, sy: 0.64, sz: 3.3 });
   for (let i = 0; i < 4; i++) for (const s of [-1, 1]) {
@@ -262,6 +270,9 @@ export function danangCathedral(B, { x, z, ry = 0 }) {
   B.main.cyl(0, 4.58, 1.15, 0.02, 0.3, '#d9b440', 4);
   B.main.quad(0, 0.4, 1.56, 0.36, 0.8, '#5a3d48');
   B.main.put(P.disc(16), trim, { y: 1.5, z: 1.56, sx: 0.4, sy: 0.4 });
+  facadeRows(B, { w: 1.6, d: 3.2, z: -0.6, levels: [0.65], faces: ['back'], ww: 0.22, wh: 0.52, trim, glass: '#7d6b8f', arched: true });
+  facadeRows(B, { w: 0.6, d: 0.6, z: 1.15, levels: [2.72], ww: 0.18, wh: 0.24, trim, glass: '#5a3d48', arched: true });
+  B.lit.pop();
   B.glass.pop();
   B.main.pop();
 }
@@ -276,26 +287,60 @@ export function beachUmbrella(B, { x, z, y, rng }) {
 // ===================================================================== TP. HỒ CHÍ MINH
 
 export function landmark81(B, { x, z, rng }) {
-  const glass = '#7f9aaa', fin = '#e3e8ec';
+  const glass = '#76919f', fin = '#ced9de', mullion = '#596e7a';
   B.main.box(x, 0, z, 5.4, 1.1, 5.4, '#d6d1c7');
   B.glass.box(x, 0.1, z, 5.42, 0.5, 5.42, '#5a6e7c');
-  const c = 1.32;
-  const H = [[17, 21, 18.5], [22, 26.5, 23], [19, 22.5, 16]];
+  // A single bundled tower: low outer shafts, intermediate shoulders and a
+  // slender, much taller square core, rather than nine almost equal towers.
+  const c = 1.1;
+  const H = [[10.2, 18.2, 12.4], [15.2, 26.5, 20.8], [9.0, 16.6, 11.2]];
+  const windows = rng.fork('landmark81-office-windows');
+  // Retain the old parent draw sequence; facade edits must not rearrange the city.
+  for (const row of [[17, 21, 18.5], [22, 26.5, 23], [19, 22.5, 16]]) {
+    for (const h of row) for (let f = 2; f < h - 0.5; f += 0.62) rng.chance(0.22);
+  }
   for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) {
     const cx = x + (i - 1) * c, cz = z + (j - 1) * c, h = H[j][i];
     B.glass.box(cx, 1.1, cz, c - 0.04, h - 1.1, c - 0.04, glass);
-    for (const [sx, sz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) B.main.box(cx + sx * (c / 2 - 0.03), 1.1, cz + sz * (c / 2 - 0.03), 0.06, h - 1.1, 0.06, fin);
-    B.main.box(cx, h, cz, c - 0.02, 0.12, c - 0.02, fin);
-    for (let f = 2; f < h - 0.5; f += 0.62) {
-      if (rng.chance(0.22)) B.lit.box(cx, f, cz, c - 0.02, 0.3, c - 0.02, '#4b5763');
+    for (const [sx, sz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) B.main.box(cx + sx * (c / 2 - 0.025), 1.1, cz + sz * (c / 2 - 0.025), 0.045, h - 1.1, 0.045, fin);
+    B.main.box(cx, h, cz, c - 0.01, 0.1, c - 0.01, fin);
+    // Fine, non-emissive curtain-wall floor lines and continuous vertical ribs.
+    for (let f = 1.52; f < h - 0.1; f += 0.42) B.main.box(cx, f, cz, c - 0.015, 0.025, c - 0.015, mullion);
+    for (const s of [-1, 1]) for (const u of [-0.17, 0.17]) {
+      B.main.box(cx + u, 1.1, cz + s * (c / 2 - 0.012), 0.018, h - 1.1, 0.025, fin);
+      B.main.box(cx + s * (c / 2 - 0.012), 1.1, cz + u, 0.025, h - 1.1, 0.018, fin);
     }
+    B.lit.push(cx, 0, cz);
+    B.glass.push(cx, 0, cz);
+    const neighbours = { front: H[j + 1]?.[i] ?? 0, back: H[j - 1]?.[i] ?? 0,
+      right: H[j]?.[i + 1] ?? 0, left: H[j]?.[i - 1] ?? 0 };
+    for (let f = 1.7; f < h - 0.2; f += 0.42) {
+      const probability = windows.chance(0.22) ? 0.5 : 0.22;
+      for (const face of ['front', 'back', 'right', 'left']) {
+        if (f - 0.14 <= neighbours[face] + 0.1) continue; // skip buried/roof-intersecting panes
+        officeWindowRow(B, windows, { face, w: c - 0.04, d: c - 0.04, y: f, height: 0.28, probability });
+      }
+    }
+    B.glass.pop();
+    B.lit.pop();
   }
-  // crown
-  const top = 26.5, cx = x, cz = z;
-  for (const [sx, sz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) B.main.beam(V(cx + sx * 0.6, top, cz + sz * 0.6), V(cx + sx * 0.2, top + 2.0, cz + sz * 0.2), 0.04, fin, 4);
-  for (let k = 0; k < 3; k++) B.neon.box(cx, top + 0.4 + k * 0.6, cz, 1.1 - k * 0.3, 0.06, 1.1 - k * 0.3, '#cfe3ff');
-  B.main.cyl(cx, top + 2.0, cz, 0.05, 1.4, fin, 6, 0.015);
-  B.lamp.sphere(cx, top + 3.45, cz, 0.08, '#ff6b5a');
+  // Rectilinear stepped crown and long square mast, as in the reference photo.
+  B.glass.box(x, 26.6, z, 0.86, 0.25, 0.86, glass);
+  B.main.box(x, 26.85, z, 0.9, 0.06, 0.9, fin);
+  B.glass.box(x - 0.06, 26.91, z, 0.68, 0.3, 0.68, glass);
+  B.main.box(x - 0.06, 27.21, z, 0.72, 0.06, 0.72, fin);
+  B.main.box(x - 0.14, 27.27, z, 0.22, 2.35, 0.22, mullion);
+  for (const s of [-1, 1]) B.main.box(x - 0.14 + s * 0.105, 27.27, z, 0.025, 2.35, 0.24, fin);
+  for (let y = 27.5; y < 29.6; y += 0.24) B.main.box(x - 0.14, y, z, 0.24, 0.025, 0.24, fin);
+  B.main.cyl(x - 0.14, 29.62, z, 0.02, 0.25, fin, 4);
+  B.lamp.sphere(x - 0.14, 29.88, z, 0.045, '#ff6b5a');
+}
+
+// A pinned procedural office tower, used when a specific skyline building moves.
+export function officeTower(B, { x, z, ry = 0, w, d, floors, seed, palette }) {
+  for (const b of Object.values(B)) b.push(x, 0, z, ry);
+  tower(B, { w, d, floors }, new RNG(seed), palette);
+  for (const b of Object.values(B)) b.pop();
 }
 
 export function bitexco(B, { x, z, rng }) {
@@ -306,24 +351,31 @@ export function bitexco(B, { x, z, rng }) {
   B.main.box(x, 0, z, 4, 0.9, 3.6, '#d3cec5');
   B.glass.put(lathe, glass, { x, y: 0, z, sz: 0.78 }, true);
   const rAt = (h) => { for (let i = 1; i < prof.length; i++) if (h <= prof[i][1]) { const t = (h - prof[i - 1][1]) / (prof[i][1] - prof[i - 1][1]); return prof[i - 1][0] + (prof[i][0] - prof[i - 1][0]) * t; } return 0; };
+  const windows = rng.fork('bitexco-office-windows');
   for (let h = 1.2; h < 17; h += 0.62) {
     const r = rAt(h) + 0.02;
-    if (Math.round(h / 0.62) % 3 === 0) B.main.put(P.cyl(24), '#e8eef1', { x, y: h, z, sx: r * 2, sy: 0.05, sz: r * 2 * 0.78 });
-    else if (rng.chance(0.25)) B.lit.put(P.cyl(24), '#4b5763', { x, y: h + 0.25, z, sx: r * 2 - 0.01, sy: 0.3, sz: (r * 2 - 0.01) * 0.78 });
+    const band = Math.round(h / 0.62) % 3 === 0;
+    if (band) B.main.put(P.cyl(24), '#e8eef1', { x, y: h, z, sx: r * 2, sy: 0.05, sz: r * 2 * 0.78 });
+    const probability = band ? 0.3 : rng.chance(0.25) ? 0.5 : 0.2;
+    curvedOfficeWindowRow(B, windows, { x, z, y: h + 0.25, radiusAt: rAt,
+      profileHeights: prof.map(p => p[1]), zScale: 0.78, segments: 24, probability });
   }
-  // helipad
-  const hy = 12.4;
-  B.main.cyl(x + 1.15, hy, z, 1.05, 0.16, '#6f777d', 20);
-  B.main.cyl(x + 1.15, hy - 0.4, z, 0.5, 0.4, '#a6aeb3', 12, 0.95);
-  B.main.flat(x + 1.15, hy + 0.17, z, 0.5, 0.08, '#ffffff');
-  B.main.flat(x + 1.15 - 0.2, hy + 0.17, z, 0.08, 0.5, '#ffffff');
-  B.main.flat(x + 1.15 + 0.2, hy + 0.17, z, 0.08, 0.5, '#ffffff');
+  // Exaggerated cantilevered helipad: recognizable even at full-city/mobile scale.
+  const hy = 12.4, hx = x + 1.75, padR = 1.7, top = hy + 0.19;
+  B.main.cyl(hx, hy, z, padR, 0.18, '#626e75', 32);
+  B.main.cyl(hx, hy - 0.45, z, 0.65, 0.45, '#a6aeb3', 20, 1.4);
+  B.main.put(normalizeGeometry(new THREE.TorusGeometry(padR * 0.82, 0.025, 4, 32)), '#edf1e8',
+    { x: hx, y: top + 0.008, z, rx: -Math.PI / 2 }, true);
+  B.main.flat(hx, top, z, 0.9, 0.14, '#ffffff');
+  B.main.flat(hx - 0.38, top, z, 0.14, 1.02, '#ffffff');
+  B.main.flat(hx + 0.38, top, z, 0.14, 1.02, '#ffffff');
 }
 
 export function notreDame(B, { x, z, ry = 0, rng }) {
   const brick = '#b9573d', trim = '#ead9c4', roof = '#c86a43', spire = '#7c8a93';
   B.main.push(x, 0, z, ry);
   B.glass.push(x, 0, z, ry);
+  B.lit.push(x, 0, z, ry);
   B.main.box(0, 0, -0.5, 1.5, 1.6, 4.0, brick);
   B.main.put(P.prism(), roof, { y: 1.6 + 0.33, z: -0.5, sx: 1.65, sy: 0.66, sz: 4.1 });
   for (const s of [-1, 1]) {
@@ -348,17 +400,29 @@ export function notreDame(B, { x, z, ry = 0, rng }) {
   B.main.put(P.disc(16), trim, { y: 1.65, z: 1.83, sx: 0.36, sy: 0.36 });
   B.glass.put(P.disc(16), '#5d6f9a', { y: 1.65, z: 1.835, sx: 0.26, sy: 0.26 });
   for (const s of [-1, 0, 1]) B.main.quad(s * 0.55, 0.38, 1.886, 0.26, 0.6, '#4a3a33');
+  for (const s of [-1, 1]) {
+    for (const wz of [-2.05, -0.65, 0.15, 0.9]) facadeWindow(B, { x: s * 1.255, z: wz, ry: s * Math.PI / 2, y: 0.53, w: 0.18, h: 0.40, trim, glass: '#596b7f', arched: true });
+    facadeWindow(B, { x: s * 1.405, z: -1.4, ry: s * Math.PI / 2, y: 0.9, w: 0.30, h: 0.6, trim, glass: '#596b7f', arched: true });
+    facadeWindow(B, { x: s * 0.58, z: 1.215, ry: Math.PI, y: 2.75, w: 0.22, h: 0.4, trim, glass: '#4a3a33', arched: true });
+  }
+  // Tangent-mounted apse windows stay on the curved rear wall.
+  for (const a of [Math.PI * 0.65, Math.PI, Math.PI * 1.35]) facadeWindow(B, {
+    x: Math.sin(a) * 0.758, z: -2.5 + Math.cos(a) * 0.758, ry: a,
+    y: 0.85, w: 0.18, h: 0.62, trim, glass: '#596b7f', arched: true });
+  B.lit.pop();
   B.glass.pop();
-  B.main.pop();
   // statue garden
-  B.main.cyl(x + Math.sin(ry) * 3.1, 0, z + Math.cos(ry) * 3.1, 0.75, 0.08, '#7fb04a', 16);
-  B.main.box(x + Math.sin(ry) * 3.1, 0.08, z + Math.cos(ry) * 3.1, 0.25, 0.35, 0.25, '#e9e4da');
-  B.main.cyl(x + Math.sin(ry) * 3.1, 0.43, z + Math.cos(ry) * 3.1, 0.07, 0.38, '#f6f3ec', 8, 0.04);
+  B.main.cyl(0, 0, 3.1, 0.75, 0.08, '#7fb04a', 16);
+  B.main.box(0, 0.08, 3.1, 0.25, 0.35, 0.25, '#e9e4da');
+  B.main.cyl(0, 0.43, 3.1, 0.07, 0.38, '#f6f3ec', 8, 0.04);
+  B.main.pop();
 }
 
 export function postOffice(B, { x, z, ry = 0 }) {
   const yellow = '#f0cd72', trim = '#fbf4e2', green = '#4c7a5d', roof = '#c65d3b';
   B.main.push(x, 0, z, ry);
+  B.glass.push(x, 0, z, ry);
+  B.lit.push(x, 0, z, ry);
   B.main.box(0, 0, 0, 5.8, 1.5, 2.1, yellow);
   B.main.box(0, 1.5, 0, 5.9, 0.08, 2.2, trim);
   B.main.put(hipRoof(5.9, 2.2, 0.45), roof, { y: 1.58 }, true);
@@ -370,41 +434,181 @@ export function postOffice(B, { x, z, ry = 0 }) {
   B.main.quad(0, 0.55, 1.205, 0.6, 1.0, '#5a4a3d');
   for (let f = 0; f < 2; f++) for (let i = -6; i <= 6; i++) {
     if (Math.abs(i) <= 1) continue;
-    B.main.quad(i * 0.4, 0.35 + f * 0.65, 1.055, 0.2, 0.42, green);
-    B.main.put(P.disc(10), green, { x: i * 0.4, y: 0.56 + f * 0.65, z: 1.055, sx: 0.2, sy: 0.2 });
+    facadeWindow(B, { x: i * 0.4, z: 1.05, y: 0.35 + f * 0.65, w: 0.20, h: 0.42, trim, glass: green, arched: true });
   }
+  facadeRows(B, { w: 5.8, d: 2.1, levels: [0.35, 1.0], faces: ['back', 'left', 'right'], ww: 0.25, wh: 0.34, trim, glass: green, arched: true });
+  B.lit.pop();
+  B.glass.pop();
   B.main.pop();
 }
 
 export function cityHall(B, { x, z, ry = 0 }) {
-  const yellow = '#f3d98e', trim = '#fcf7ea', roof = '#c8583a';
-  B.main.push(x, 0, z, ry);
-  B.lamp.push(x, 0, z, ry);
+  const yellow = '#efda9c', trim = '#fff4dc', roof = '#b95734', green = '#354e41';
+  for (const b of [B.main, B.glass, B.lit, B.lamp]) b.push(x, 0, z, ry);
+  // Smaller architectural modules, with longer wings filling the same frontage.
+  // Keep this separate from the landmark frame so the statue is NOT scaled/moved.
+  const moduleScale = 0.68;
+  for (const b of [B.main, B.glass, B.lit, B.lamp]) b.push(0, 0, 0, 0, moduleScale);
+
+  // A single long two-storey façade, not a collection of detached little towers.
+  const w = 11.5 / moduleScale, d = 2.35, front = d / 2;
+  B.main.box(0, 0, 0, w + 0.12, 0.14, d + 0.12, '#ad9480');
+  B.main.box(0, 0.14, 0, w, 2.38, d, yellow);
+  for (const y of [0.18, 1.35, 2.48]) B.main.box(0, y, 0, w + 0.12, 0.09, d + 0.12, trim);
+  B.main.put(hipRoof(w, d, 0.25), roof, { y: 2.57 }, true);
+  // Orbit views see the long rear wing and both end walls, too.
+  facadeRows(B, { w, d, levels: [0.65, 1.93], faces: ['back', 'left', 'right'], spacing: 0.70,
+    ww: 0.36, wh: 0.53, trim, glass: green, arched: true });
+
+  const shape = new THREE.Shape();
+  shape.moveTo(-0.5, 0); shape.lineTo(0.5, 0); shape.lineTo(0.5, 0.5);
+  shape.absarc(0, 0.5, 0.5, 0, Math.PI, false); shape.closePath();
+  const arch = normalizeGeometry(new THREE.ShapeGeometry(shape, 12));
+  const opening = (u, bottom, face, aw, ah, glowing = true) => {
+    B.main.put(arch, trim, { x: u, y: bottom - 0.035, z: face, sx: aw + 0.10, sy: ah + 0.07 });
+    const builder = glowing ? B.lit : B.main;
+    builder.put(arch, green, { x: u, y: bottom, z: face + 0.008, sx: aw, sy: ah });
+    B.main.box(u, bottom, face + 0.02, 0.025, ah * 0.87, 0.018, '#657461');
+    B.main.box(u, bottom + ah * 0.48, face + 0.02, aw * 0.95, 0.025, 0.018, '#657461');
+    B.main.box(u, bottom - 0.065, face, aw + 0.16, 0.055, 0.13, trim);
+  };
+  const pilaster = (u, face, bottom = 0.2, h = 2.27) => {
+    B.main.box(u, bottom, face, 0.10, h, 0.12, trim);
+    for (const y of [bottom, bottom + h - 0.12]) B.main.box(u, y, face + 0.015, 0.19, 0.12, 0.15, trim);
+  };
+  const railing = (cx, y, face, span) => {
+    B.main.box(cx, y, face, span, 0.045, 0.12, trim);
+    B.main.box(cx, y + 0.24, face, span, 0.055, 0.13, trim);
+    const n = Math.round(span / 0.16);
+    for (let i = 0; i <= n; i++) B.main.cyl(cx - span / 2 + span * i / n, y + 0.04, face, 0.022, 0.20, trim, 6);
+  };
+  const pediment = (cx, y, face, span, h) => {
+    B.main.put(P.prism(), trim, { x: cx, y: y + h / 2, z: face, sx: span, sy: h, sz: 0.16 });
+    B.main.put(P.prism(), yellow, { x: cx, y: y + h * 0.43, z: face + 0.09, sx: span * 0.79, sy: h * 0.66, sz: 0.035 });
+    B.main.box(cx, y - 0.04, face, span + 0.15, 0.09, 0.24, trim);
+  };
+
+  // Outer wings: green arched shutters, white pilasters and flat balustraded crowns.
+  const wingStart = 3.58, wingEnd = w / 2 - 0.05, bays = 7;
+  const bayWidth = (wingEnd - wingStart) / bays;
   for (const s of [-1, 1]) {
-    B.main.box(s * 1.6, 0, 0, 1.8, 1.4, 1.8, yellow);
-    B.main.put(hipRoof(1.9, 1.9, 0.5), roof, { x: s * 1.6, y: 1.4 }, true);
-    B.main.box(s * 2.7, 0, 0.2, 0.7, 1.7, 1.6, yellow);
-    B.main.put(hipRoof(0.8, 1.7, 0.75), '#6f7a80', { x: s * 2.7, y: 1.7, z: 0.2 }, true);
-    for (let f = 0; f < 2; f++) for (let i = 0; i < 3; i++) B.main.quad(s * (0.95 + i * 0.45), 0.4 + f * 0.6, 0.905, 0.2, 0.36, '#5e7f6a');
+    for (let i = 0; i < bays; i++) {
+      const u = wingStart + (i + 0.5) * bayWidth;
+      opening(s * u, 0.30, front + 0.015, 0.44, 0.87);
+      opening(s * u, 1.55, front + 0.015, 0.44, 0.77);
+    }
+    for (let i = 0; i <= bays; i++) pilaster(s * (wingStart + i * bayWidth), front + 0.055);
+    railing(s * (wingStart + wingEnd) / 2, 2.58, front + 0.015, wingEnd - wingStart);
   }
-  B.main.box(0, 0, 0.1, 1.5, 1.9, 2.0, yellow);
-  B.main.box(0, 1.9, 0.1, 1.6, 0.08, 2.1, trim);
-  B.main.put(hipRoof(1.6, 2.1, 0.5), roof, { y: 1.98, z: 0.1 }, true);
-  for (let i = -2; i <= 2; i++) B.main.cyl(i * 0.3, 0, 1.15, 0.05, 1.2, trim, 8);
-  B.main.box(0, 1.2, 1.1, 1.5, 0.12, 0.2, trim);
-  B.main.box(0, 2.3, 0.1, 0.7, 1.1, 0.7, yellow);
-  B.main.put(P.disc(16), '#ffffff', { y: 2.95, z: 0.455, sx: 0.32, sy: 0.32 });
-  B.main.put(P.hemi(12), '#c7b98d', { y: 3.4, z: 0.1, sx: 0.65, sy: 0.6, sz: 0.65 });
-  B.main.cyl(0, 3.6, 0.1, 0.015, 0.9, '#ddd', 4);
-  B.main.box(0.22, 4.2, 0.1, 0.4, 0.26, 0.015, '#da251d');
-  B.lamp.box(0.18, 4.32, 0.11, 0.08, 0.08, 0.01, '#ffde00');
-  B.lamp.pop();
-  B.main.pop();
+
+  // Five-bay central loggia and its raised sculptural pediment.
+  B.main.box(0, 0.14, 0.14, 3.45, 2.55, 2.52, yellow);
+  const cf = 1.41;
+  for (let i = -2; i <= 2; i++) {
+    opening(i * 0.67, 0.26, cf, 0.45, 0.95);
+    opening(i * 0.67, 1.52, cf, 0.48, 0.91, false);
+    // Small recessed warm panes behind the dark upper arcade.
+    B.lit.quad(i * 0.67, 1.76, cf + 0.02, 0.20, 0.40, green);
+  }
+  for (let i = 0; i <= 5; i++) {
+    const u = -1.675 + i * 0.67;
+    pilaster(u, cf + 0.075, 1.45, 1.05);
+    B.main.sphere(u, 1.29, cf + 0.06, 0.075, trim, 0.7);
+  }
+  B.main.box(0, 1.40, cf, 3.6, 0.075, 0.25, trim);
+  railing(0, 1.46, cf + 0.12, 3.37);
+  B.main.box(0, 2.65, 0.14, 3.6, 0.12, 2.66, trim);
+  pediment(0, 2.96, cf, 2.65, 0.56);
+  for (const s of [-1, 1]) {
+    B.main.put(P.ico(1), trim, { x: s * 0.34, y: 3.36, z: cf + 0.15, sx: 0.28, sy: 0.48, sz: 0.15 });
+    B.main.sphere(s * 0.34, 3.64, cf + 0.15, 0.09, trim);
+    railing(s * 1.12, 2.81, 0.34, 1.05);
+  }
+  B.main.put(P.disc(12), trim, { y: 3.29, z: cf + 0.19, sx: 0.33, sy: 0.42 });
+
+  // The reference's twin red trapezoidal roofs belong on the INNER pavilions.
+  for (const s of [-1, 1]) {
+    const px = s * 2.65, pf = 1.34;
+    B.main.box(px, 0.14, 0.06, 1.88, 3.0, 2.53, yellow);
+    for (const y of [0.2, 1.36, 2.65, 3.08]) B.main.box(px, y, 0.06, 2.02, 0.085, 2.65, trim);
+    opening(px, 0.30, pf, 0.62, 0.91);
+    opening(px, 1.53, pf, 0.93, 1.01, false);
+    B.lit.quad(px, 1.76, pf + 0.02, 0.28, 0.40, green);
+    for (const off of [-0.70, 0.70]) pilaster(px + off, pf + 0.07, 1.44, 1.14);
+    railing(px, 1.47, pf + 0.16, 1.28);
+    pediment(px, 2.61, pf + 0.06, 1.48, 0.40);
+    B.main.put(P.ico(1), trim, { x: px, y: 2.99, z: pf + 0.19, sx: 0.29, sy: 0.40, sz: 0.17 });
+    for (let i = -3; i <= 3; i++) {
+      B.main.box(px + i * 0.24, 2.94, pf, 0.07, 0.13, 0.12, trim);
+    }
+    const rw = 2.05, rd = 2.72, rh = 0.87, base = 3.18, topScale = 0.55;
+    const g = normalizeGeometry(new THREE.CylinderGeometry(Math.SQRT1_2 * topScale, Math.SQRT1_2, 1, 4));
+    g.rotateY(Math.PI / 4);
+    B.main.put(g, roof, { x: px, y: base + rh / 2, z: 0.06, sx: rw, sy: rh, sz: rd }, true);
+    // Pale roof edges and restrained horizontal tile courses.
+    for (const k of [-1, 1]) {
+      B.main.beam(V(px + k * rw / 2, base, 0.06 + rd / 2), V(px + k * rw * topScale / 2, base + rh, 0.06 + rd * topScale / 2), 0.026, trim, 5);
+    }
+    for (let i = 1; i < 8; i++) {
+      const t = i / 8, scale = 1 - (1 - topScale) * t;
+      B.main.box(px, base + rh * t, 0.06 + rd * scale / 2 + 0.007, rw * scale, 0.014, 0.014, '#d07c50');
+    }
+    B.main.box(px, base + rh, 0.06, rw * topScale + 0.08, 0.055, rd * topScale + 0.08, trim);
+    railing(px, base + rh + 0.03, 0.06 + rd * topScale / 2, rw * topScale);
+    for (const off of [-0.52, 0, 0.52]) {
+      B.main.cone(px + off, 4.30, 0.06 + rd * topScale / 2, 0.04, 0.21, trim, 6);
+    }
+  }
+
+  // Square clock tower, open lantern, slender crown and Vietnamese flag.
+  const tz = -0.06;
+  B.main.box(0, 2.77, tz, 0.91, 2.13, 0.95, yellow);
+  for (const y of [3.55, 4.55, 4.86]) B.main.box(0, y, tz, 1.06, 0.10, 1.10, trim);
+  for (const u of [-0.39, 0.39]) pilaster(u, tz + 0.49, 3.65, 0.88);
+  for (const side of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+    B.main.push(0, 0, tz, side);
+    B.main.put(P.disc(24), '#c4af83', { y: 4.19, z: 0.489, sx: 0.59, sy: 0.59 });
+    B.main.put(P.disc(24), trim, { y: 4.19, z: 0.495, sx: 0.48, sy: 0.48 });
+    for (let i = 0; i < 12; i++) {
+      const a = i * Math.PI / 6;
+      B.main.put(P.box(), '#6b6456', { x: Math.sin(a) * 0.195, y: 4.19 + Math.cos(a) * 0.195, z: 0.505, sx: 0.022, sy: 0.043, sz: 0.012, rz: -a });
+    }
+    B.main.box(0, 4.18, 0.517, 0.027, 0.16, 0.012, '#514a40');
+    B.main.put(P.box(), '#514a40', { x: 0.053, y: 4.16, z: 0.517, sx: 0.12, sy: 0.025, sz: 0.012, rz: -0.5 });
+    B.main.pop();
+  }
+  B.main.box(0, 4.99, tz, 0.64, 0.54, 0.65, green);
+  for (const a of [-0.38, 0.38]) for (const b of [-0.38, 0.38]) B.main.cyl(a, 4.96, tz + b, 0.043, 0.64, trim, 8);
+  B.main.box(0, 5.57, tz, 0.96, 0.10, 1.0, trim);
+  B.main.put(hipRoof(0.82, 0.86, 0.28), '#a69976', { y: 5.67, z: tz }, true);
+  B.main.box(0, 5.91, tz, 0.26, 0.36, 0.28, trim);
+  B.main.put(P.pyramid(), trim, { y: 6.36, z: tz, sx: 0.3, sy: 0.22, sz: 0.3 });
+  B.main.cyl(0, 6.42, tz, 0.018, 0.67, '#eee8d6', 6);
+  B.main.box(0.22, 6.75, tz, 0.43, 0.27, 0.02, '#da251d');
+  const star = new THREE.Shape();
+  for (let i = 0; i < 10; i++) {
+    const a = Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? 0.035 : 0.08;
+    const px = Math.cos(a) * r, py = Math.sin(a) * r;
+    if (i === 0) star.moveTo(px, py); else star.lineTo(px, py);
+  }
+  star.closePath();
+  const sg = normalizeGeometry(new THREE.ShapeGeometry(star));
+  for (const s of [-1, 1]) B.main.put(sg, '#ffde00', { x: 0.22, y: 6.885, z: tz + s * 0.012, ry: s < 0 ? Math.PI : 0 });
+  sg.dispose();
+
+  // Front steps stay behind the original statue position (local z = 2.2).
+  for (let i = 0; i < 3; i++) B.main.box(0, i * 0.05, 1.48 - i * 0.08, 3.65, 0.05, 0.32, trim);
+  for (const u of [-1.40, 1.40]) {
+    B.main.box(u, 0.3, 1.53, 0.09, 0.30, 0.08, '#8f7957');
+    B.lamp.sphere(u, 0.65, 1.53, 0.065, '#ffe1a0', 1, 6);
+  }
+  arch.dispose();
+  for (const b of [B.main, B.glass, B.lit, B.lamp]) b.pop();
   // Uncle Hồ statue
-  const sx = x + Math.sin(ry) * 2.2, sz = z + Math.cos(ry) * 2.2;
-  B.main.box(sx, 0, sz, 0.6, 0.45, 0.45, '#e2ddd2');
-  B.main.cyl(sx, 0.45, sz, 0.09, 0.42, '#a88b5c', 8, 0.07);
-  B.main.sphere(sx, 0.95, sz, 0.07, '#a88b5c');
+  B.main.box(0, 0, 2.2, 0.6, 0.45, 0.45, '#e2ddd2');
+  B.main.cyl(0, 0.45, 2.2, 0.09, 0.42, '#a88b5c', 8, 0.07);
+  B.main.sphere(0, 0.95, 2.2, 0.07, '#a88b5c');
+  for (const b of [B.main, B.glass, B.lit, B.lamp]) b.pop();
 }
 
 export function benThanh(B, { x, z, ry = 0, w = 5.4, d = 4.4 }) {
@@ -484,6 +688,7 @@ const toWorld = (x, z, ry, lx, lz) => [x + lx * Math.cos(ry) + lz * Math.sin(ry)
 function tieredGate(B, z, w, h, wall, roof, tiers = 2) {
   B.main.box(0, 0, z, w, h, 0.55, wall);
   B.main.quad(0, h * 0.35, z + 0.28, w * 0.28, h * 0.7, '#3b2b22');
+  B.main.quad(0, h * 0.35, z - 0.28, w * 0.28, h * 0.7, '#3b2b22', Math.PI);
   for (const sx of [-1, 1]) {
     B.main.box(sx * (w / 2 + 0.35), 0, z, 0.7, h * 0.7, 0.5, wall);
     B.main.put(P.flaredRoof(), roof, { x: sx * (w / 2 + 0.35), y: h * 0.7, z, sx: 1.0, sy: 0.3, sz: 0.8 });
@@ -535,12 +740,18 @@ export function vanMieu(B, { x, z, ry = 0, rng }) {
   for (const sx of [-1, 1]) {
     B.main.box(sx * 2.15, 0, -2.6, 0.9, 0.55, 2.8, plaster);
     B.main.put(P.prism(), roof, { x: sx * 2.15, y: 0.72, z: -2.6, sx: 1.15, sy: 0.34, sz: 3.0 });
+    for (const side of [-1, 1]) for (let i = 0; i < 4; i++) B.main.quad(sx * 2.15 + side * 0.455, 0.28, -3.65 + i * 0.70, 0.30, 0.38, '#776856', side * Math.PI / 2);
+    for (const side of [-1, 1]) B.main.quad(sx * 2.15, 0.28, -2.6 + side * 1.405, 0.38, 0.38, '#776856', side > 0 ? 0 : Math.PI);
   }
 
   // Đại Bái Đường (main hall), double roof, enlarged
   B.main.push(0, 0, -5.8, 0, 1.25);
   B.main.box(0, 0, 0, 4.2, 0.08, 1.7, '#cfc6b2');
   B.main.box(0, 0.08, 0, 3.7, 0.6, 1.2, red);
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < 7; i++) B.main.quad(-1.5 + i * 0.5, 0.38, side * 0.606, 0.28, 0.45, '#5e2a22', side > 0 ? 0 : Math.PI);
+    B.main.quad(side * 1.855, 0.38, 0, 0.4, 0.45, '#5e2a22', side * Math.PI / 2);
+  }
   for (let i = 0; i < 8; i++) B.main.cyl(-1.75 + i * 0.5, 0.08, 0.68, 0.045, 0.6, '#7d2a20', 6);
   B.main.put(P.flaredRoof(), roof, { y: 0.65, sx: 4.8, sy: 0.28, sz: 2.0 });
   B.main.box(0, 0.85, 0, 2.9, 0.25, 0.85, red);
@@ -619,6 +830,10 @@ export function linhUng(B, { x, z, ry = Math.PI / 2, rng, field }) {
     B.main.push(hx, gy, hz, rot);
     B.main.box(0, -0.8, 0, w + 0.4, 0.95, d + 0.4, '#d8d0c0');
     B.main.box(0, 0.15, 0, w, h, d, '#f2e3c4');
+    for (const side of [-1, 1]) {
+      for (const u of [-0.5, 0, 0.5]) B.main.quad(u, 0.15 + h * 0.45, side * (d / 2 + 0.008), 0.25, h * 0.65, '#8e392a', side > 0 ? 0 : Math.PI);
+      B.main.quad(side * (w / 2 + 0.008), 0.15 + h * 0.45, 0, 0.3, h * 0.65, '#8e392a', side * Math.PI / 2);
+    }
     for (let i = 0; i < 5; i++) B.main.cyl(-w / 2 + 0.1 + (i * (w - 0.2)) / 4, 0.15, d / 2 + 0.12, 0.04, h, '#b23a2a', 6);
     B.main.put(P.flaredRoof(), '#d9822f', { y: 0.15 + h, sx: w + 0.7, sy: 0.4, sz: d + 0.6 });
     B.main.box(0, 0.15 + h + 0.25, 0, w * 0.55, 0.28, d * 0.5, '#f2e3c4');
@@ -652,6 +867,8 @@ export function oneLegPagoda(B, { x, z, ry = 0, rng, scale = 1.25 }) {
   for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) B.main.beam(V(0, 0.45, 0), V(sx * 0.3, 0.66, sz * 0.3), 0.03, '#7a3b2a', 4);
   B.main.box(0, 0.71, 0, 0.48, 0.34, 0.48, '#8e3b28');
   B.main.quad(0, 0.86, 0.245, 0.2, 0.22, '#3b2b22');
+  B.main.quad(0, 0.86, -0.245, 0.2, 0.22, '#3b2b22', Math.PI);
+  for (const side of [-1, 1]) B.main.quad(side * 0.245, 0.86, 0, 0.18, 0.22, '#3b2b22', side * Math.PI / 2);
   B.main.put(P.flaredRoof(), '#7a5641', { y: 1.05, sx: 0.95, sy: 0.38, sz: 0.95 });
   B.main.put(P.cyl(8), '#e0b04a', { y: 1.45, sx: 0.06, sy: 0.12, sz: 0.06 });
   // stairway from the pond rim
@@ -668,10 +885,11 @@ export function stJoseph(B, { x, z, ry = 0, scale = 1 }) {
   const wall = '#8c867b', dark = '#6b665d', roof = '#4f4d4a', trim = '#a9a397';
   B.main.push(x, 0, z, ry, scale);
   B.glass.push(x, 0, z, ry, scale);
+  B.lit.push(x, 0, z, ry, scale);
   B.main.box(0, 0, -0.55, 1.6, 1.55, 2.6, wall);
   B.main.put(P.prism(), roof, { y: 1.55 + 0.38, z: -0.55, sx: 1.72, sy: 0.76, sz: 2.7 });
   for (let i = 0; i < 4; i++) for (const sx of [-1, 1]) {
-    B.main.quad(sx * 0.805, 0.85, -1.55 + i * 0.65, 0.16, 0.6, dark, sx * Math.PI / 2);
+    facadeWindow(B, { x: sx * 0.805, z: -1.55 + i * 0.65, ry: sx * Math.PI / 2, y: 0.80, w: 0.16, h: 0.6, trim, glass: '#596779', arched: true });
     B.main.cone(sx * 0.8, 1.55, -1.55 + i * 0.65, 0.05, 0.25, trim, 4);
   }
   for (const sx of [-1, 1]) {
@@ -680,6 +898,8 @@ export function stJoseph(B, { x, z, ry = 0, scale = 1 }) {
     for (let k = 1; k <= 3; k++) B.main.box(tx, k * 0.8, 1.0, 0.76, 0.05, 0.76, trim);
     B.main.quad(tx, 2.55, 1.365, 0.2, 0.5, '#2f2c28');
     B.main.quad(tx + sx * 0.365, 2.55, 1.0, 0.2, 0.5, '#2f2c28', sx * Math.PI / 2);
+    facadeWindow(B, { x: tx, z: 0.635, ry: Math.PI, y: 2.55, w: 0.20, h: 0.45, trim, glass: dark, arched: true });
+    facadeWindow(B, { x: tx - sx * 0.365, z: 1.0, ry: -sx * Math.PI / 2, y: 2.55, w: 0.20, h: 0.45, trim, glass: dark, arched: true });
     B.main.box(tx, 3.0, 1.0, 0.8, 0.08, 0.8, trim);
     for (const [px, pz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) B.main.cone(tx + px * 0.34, 3.08, 1.0 + pz * 0.34, 0.05, 0.3, trim, 4);
   }
@@ -691,6 +911,8 @@ export function stJoseph(B, { x, z, ry = 0, scale = 1 }) {
   B.glass.put(P.disc(16), '#5d6f9a', { y: 1.6, z: 1.36, sx: 0.28, sy: 0.28 });
   for (const sx of [-0.62, 0, 0.62]) B.main.quad(sx, 0.4, 1.37, 0.26, 0.7, '#3a2e26');
   B.main.box(0, 0, 1.9, 1.9, 0.04, 1.0, '#cfc8ba');
+  facadeRows(B, { w: 1.6, d: 2.6, z: -0.55, levels: [0.75], faces: ['back'], spacing: 0.55, ww: 0.22, wh: 0.58, trim, glass: '#596779', arched: true });
+  B.lit.pop();
   B.glass.pop();
   B.main.pop();
 }
@@ -840,6 +1062,8 @@ export function khanhHoiBridge(B, { x, z0, z1, deckY, hw = 1.2 }) {
 export function nhaRong(B, { x, z, ry = 0, scale = 1 }) {
   const wall = '#f3dca2', white = '#fbf5e6', roof = '#c4482f', green = '#22b04f';
   B.main.push(x, 0, z, ry, scale);
+  B.glass.push(x, 0, z, ry, scale);
+  B.lit.push(x, 0, z, ry, scale);
   B.lamp.push(x, 0, z, ry, scale);
   B.main.box(0, 0, 0.2, 4.6, 0.1, 3.0, '#cfc8ba');
   B.main.box(0, 0.1, 0, 3.8, 1.25, 1.9, wall);
@@ -852,9 +1076,16 @@ export function nhaRong(B, { x, z, ry = 0, scale = 1 }) {
   B.main.put(P.prism(), roof, { y: 1.38, z: 1.2, sx: 1.45, sy: 0.38, sz: 0.7, ry: Math.PI / 2 });
   for (let f = 0; f < 2; f++) for (const sx of [-1, 1]) for (let i = 0; i < 3; i++) {
     const wx = sx * (0.95 + i * 0.4);
-    B.main.quad(wx, 0.45 + f * 0.5, 0.955, 0.18, 0.3, '#5f7f74');
-    B.main.put(P.disc(10), white, { x: wx, y: 0.6 + f * 0.5, z: 0.956, sx: 0.18, sy: 0.18 });
+    facadeWindow(B, { x: wx, z: 0.95, y: 0.45 + f * 0.5, w: 0.20, h: 0.30, trim: white, glass: '#5f7f74', arched: true });
   }
+  facadeRows(B, { w: 3.8, d: 1.9, levels: [0.45, 0.95], faces: ['back', 'left', 'right'], spacing: 0.52,
+    ww: 0.22, wh: 0.30, trim: white, glass: '#5f7f74', arched: true,
+    skip: ({ face, u, y }) => face === 'back' && Math.abs(u) < 0.2 && y < 0.5 });
+  // Rear entrance and repeated pilasters make the default-facing land side legible.
+  facadeWindow(B, { z: -0.95, ry: Math.PI, y: 0.38, w: 0.32, h: 0.48, trim: white, glass: '#415b4e', arched: true });
+  facadeWindow(B, { z: 1.40, y: 0.46, w: 0.42, h: 0.60, trim: white, glass: '#415b4e', arched: true });
+  for (const face of [-1, 1]) for (const wx of [-1.85, -1.3, -0.75, 0.75, 1.3, 1.85]) B.main.box(wx, 0.1, face * 0.955, 0.045, 1.25, 0.035, white);
+  B.main.box(0, 0.72, 0, 3.85, 0.035, 1.95, white);
   // two dragons on the ridge facing a moon (lưỡng long chầu nguyệt)
   const ridgeY = 1.42 + 0.75;
   B.lamp.put(P.disc(16), '#ffe9a8', { y: ridgeY + 0.32, sx: 0.32, sy: 0.32 });
@@ -873,6 +1104,8 @@ export function nhaRong(B, { x, z, ry = 0, scale = 1 }) {
   B.main.box(0, 0, 1.95, 4.6, 0.12, 0.5, '#b9b2a2');
   for (let i = -4; i <= 4; i++) B.main.cyl(i * 0.5, 0.12, 2.1, 0.04, 0.1, '#3d4248', 6);
   B.lamp.pop();
+  B.lit.pop();
+  B.glass.pop();
   B.main.pop();
 }
 
@@ -883,7 +1116,7 @@ export function canalRow(B, { x0, x1, z, rng }) {
   while (x < x1 - 0.9) {
     const w = rng.range(0.9, 1.4), d = 1.6, f = rng.int(2, 4), H = f * 0.62 + 0.1;
     const cx = x + w / 2;
-    B.main.push(cx, 0, z, Math.PI);
+    for (const b of [B.main, B.glass, B.lit]) b.push(cx, 0, z, Math.PI);
     B.main.box(0, 0, 0, w - 0.03, H, d, rng.pick(walls));
     B.main.quad(0, 0.24, d / 2 + 0.005, w * 0.75, 0.46, '#3a342f');
     B.main.put(P.box(), rng.pick(['#d8483b', '#2f7fbf', '#3aa36b', '#f0b13b']), { y: 0.5, z: d / 2 + 0.15, sx: w * 0.9, sy: 0.025, sz: 0.3, rx: 0.32 });
@@ -892,7 +1125,9 @@ export function canalRow(B, { x0, x1, z, rng }) {
       B.main.box(0, k * 0.62, d / 2 + 0.09, w * 0.85, 0.04, 0.18, '#e8e0cf');
     }
     B.main.put(P.prism(), rng.pick(['#e0763a', '#d9692f', '#c95f2e']), { y: H + 0.17, sx: d + 0.1, sy: 0.34, sz: w, ry: Math.PI / 2 });
-    B.main.pop();
+    facadeRows(B, { w: w - 0.03, d, levels: Array.from({ length: f - 1 }, (_, k) => (k + 1) * 0.62 + 0.34),
+      faces: ['back', 'left', 'right'], spacing: 0.70, ww: 0.22, wh: 0.32, shutter: '#5c7865' }, rng.fork('canal-secondary-facades'));
+    for (const b of [B.main, B.glass, B.lit]) b.pop();
     x += w;
   }
 }
@@ -902,5 +1137,5 @@ export const LANDMARKS = {
   vanMieu, hcmMausoleum, linhUng, oneLegPagoda, stJoseph, operaHouse, tranThiLyBridge,
   turtleTower, ngocSonTemple, hucBridge, penTower, lakePavilion,
   dragonBridge, hanRiverBridge, goldenBridge, ladyBuddha, danangCathedral,
-  landmark81, bitexco, notreDame, postOffice, cityHall, benThanh, thuThiemBridge, fountain,
+  landmark81, officeTower, bitexco, notreDame, postOffice, cityHall, benThanh, thuThiemBridge, fountain,
 };

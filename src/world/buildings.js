@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { P, hipRoof } from '../core/MeshBuilder.js';
+import { officeWindowRow } from './officeWindows.js';
+import { facadeRows } from './facades.js';
 
 // Procedural building generators. Each draws in a local frame:
 // footprint centred at origin, base at y=0, FRONT facing +z.
@@ -78,7 +80,12 @@ export function tubeHouse(B, s, rng, pal) {
     }
   }
   if (floors > 2 && rng.chance(0.35)) faceWindows(B, rng, w, d, 'right', floors, 1, { cols: 1, lit: 0.3 });
-  return roof(B, s, rng, pal, w, d, H);
+  const info = roof(B, s, rng, pal, w, d, H);
+  // Extra elevations use their own stream: do not rearrange buildings/roofs/trees.
+  facadeRows(B, { w, d, levels: Array.from({ length: floors - 1 }, (_, f) => (f + 1) * FLOOR + 0.34),
+    faces: ['back', 'left', 'right'], ww: 0.24, wh: 0.33, shutter }, rng.fork('tube-secondary-facades'));
+  facadeRows(B, { w, d, levels: [0.30], faces: ['back', 'left', 'right'], ww: 0.22, wh: 0.30 }, rng.fork('tube-ground-facades'));
+  return info;
 }
 
 function roof(B, s, rng, pal, w, d, H) {
@@ -130,7 +137,11 @@ export function villa(B, s, rng, pal) {
         const u = (i + 0.5) / n * span - span / 2;
         const set = { front: [u, d / 2 + 0.01, 0], back: [-u, -d / 2 - 0.01, Math.PI], right: [w / 2 + 0.01, -u, Math.PI / 2], left: [-w / 2 - 0.01, u, -Math.PI / 2] }[face];
         windowAt(B, set[0], y, set[1], 0.26, 0.4, 0.4, rng, set[2]);
-        B.main.put(P.box(), sh, { x: set[0], y, z: set[1], sx: 0.36, sy: 0.4, sz: 0.02, ry: set[2] });
+        B.main.push(set[0], 0, set[1], set[2]);
+        for (const side of [-1, 1]) B.main.box(side * 0.19, y - 0.2, 0.01, 0.09, 0.4, 0.025, sh);
+        B.main.box(0, y - 0.25, 0.01, 0.40, 0.04, 0.04, '#f7f3ea');
+        B.main.box(0, y + 0.22, 0.01, 0.40, 0.04, 0.04, '#f7f3ea');
+        B.main.pop();
       }
     }
   }
@@ -186,14 +197,16 @@ export function tower(B, s, rng, pal) {
   }
   // vertical fins on corners
   for (const [sx, sz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) B.main.box(sx * w / 2, podH, sz * d / 2, 0.12, H - podH, 0.12, trim);
-  // lit floors
+  // Individually occupied office bays, not entire glowing floor-width strips.
   const lit = rng.range(0.15, 0.4);
+  const windows = rng.fork('office-window-bays');
   for (let f = Math.ceil(podH / FLOOR); f < floors - 1; f++) {
     const y = f * FLOOR + FLOOR * 0.5;
-    if (rng.chance(lit)) B.lit.quad(0, y, d / 2 + 0.012, w * 0.9, FLOOR * 0.5, '#4b5763');
-    if (rng.chance(lit)) B.lit.quad(0, y, -d / 2 - 0.012, w * 0.9, FLOOR * 0.5, '#4b5763', Math.PI);
-    if (rng.chance(lit)) B.lit.quad(w / 2 + 0.012, y, 0, d * 0.9, FLOOR * 0.5, '#4b5763', Math.PI / 2);
-    if (rng.chance(lit)) B.lit.quad(-w / 2 - 0.012, y, 0, d * 0.9, FLOOR * 0.5, '#4b5763', -Math.PI / 2);
+    for (const face of ['front', 'back', 'right', 'left']) {
+      // Retain the parent RNG sequence (including crown/building placement choices).
+      const probability = rng.chance(lit) ? 0.5 : 0.18;
+      officeWindowRow(B, windows, { face, w, d, y, height: FLOOR * 0.5, probability });
+    }
   }
   // crown
   const crown = s.crown || rng.pick(['setback', 'spire', 'helipad', 'slant', 'flat']);
@@ -247,8 +260,10 @@ export function kiosk(B, s, rng, pal) {
   const { w, d } = s;
   B.main.box(0, 0, 0, w, 0.5, d, rng.pick(pal.walls));
   B.main.quad(0, 0.24, d / 2 + 0.005, w * 0.6, 0.36, DARK);
+  B.glass.quad(0, 0.26, d / 2 + 0.012, w * 0.42, 0.24, GLASS_DARK);
   const g = hipRoof(w + 0.2, d + 0.2, 0.3);
   B.main.put(g, rng.pick(pal.roofs), { y: 0.5 }, true);
+  facadeRows(B, { w, d, levels: [0.27], faces: ['back', 'left', 'right'], ww: 0.20, wh: 0.22 }, rng.fork('kiosk-secondary-facades'));
   return { top: 0.8, tin: false };
 }
 
@@ -299,6 +314,8 @@ export function shophouse(B, s, rng, pal) {
   else B.main.put(P.prism(), trim, { y: H + 0.3, z: d / 2 - 0.04, sx: Math.min(0.8, w * 0.45), sy: 0.2, sz: 0.08 });
   const rc = rng.pick(pal.roofs);
   B.main.put(P.prism(), rc, { y: H + 0.22, z: -0.05, sx: d * 0.92, sy: 0.44, sz: w + 0.04, ry: Math.PI / 2 });
+  facadeRows(B, { w, d, levels: Array.from({ length: floors }, (_, f) => f * FH + 0.33),
+    faces: ['back', 'left', 'right'], spacing: 0.72, ww: 0.23, wh: 0.34, trim, shutter, arched: true }, rng.fork('shop-secondary-facades'));
   return { top: H + 0.44, tin: false };
 }
 

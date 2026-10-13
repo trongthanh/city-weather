@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Path } from '../core/Path.js';
+import { Path, clipPathToBounds } from '../core/Path.js';
 import { HALF, WATER_LEVEL, BED } from './Field.js';
 import { smoothstep } from '../core/rng.js';
 
@@ -51,7 +51,8 @@ export function prepareRoads(defs, field) {
     }
     const startEdge = !path.closed && onEdge(pts[0]);
     const endEdge = !path.closed && onEdge(pts[n - 1]);
-    return { id, def, hw, sw, path, wet, bridge, startEdge, endEdge, junctions: [], kind: def.kind || 'road', name: def.name };
+    return { id, def, hw, sw, path, wet, bridge, startEdge, endEdge, junctions: [], kind: def.kind || 'road', name: def.name,
+      speedLimit: def.speedLimit };
   });
 }
 
@@ -62,7 +63,8 @@ function ribbon(out, path, offA, offB, yOff, color, skip, depth = 0) {
   const cs = new THREE.Color(color).multiplyScalar(0.82);
   const v = (i, off, dy) => {
     const p = pts[i % n], t = tans[i % n];
-    return [p.x - t.z * off, p.y + yOff + dy, p.z + t.x * off];
+    return [THREE.MathUtils.clamp(p.x - t.z * off, -HALF, HALF), p.y + yOff + dy,
+      THREE.MathUtils.clamp(p.z + t.x * off, -HALF, HALF)];
   };
   const push = (a, b, cc, d, col) => {
     for (const k of [0, 1, 2, 0, 2, 3]) { const q = [a, b, cc, d][k]; out.pos.push(q[0], q[1], q[2]); out.col.push(col.r, col.g, col.b); }
@@ -158,7 +160,11 @@ export function buildRoads(roads, field, B, occ, rng, trees) {
     const { path, hw, sw } = r;
     const n = path.points.length;
     const plaza = r.kind === 'plaza';
-    ribbon(out, path, -hw, hw, 0, plaza ? '#d9cfc0' : r.bridge ? C.asphalt : C.asphalt, null, 0.28);
+    // Main-road asphalt owns junctions. Recess stone alley ribbons slightly so
+    // the different-colour surfaces cannot z-fight where their paths overlap.
+    // Agent paths retain the same heights for continuous lane-to-lane turns.
+    const surfaceOffset = r.kind === 'alley' ? -0.015 : 0;
+    ribbon(out, path, -hw, hw, surfaceOffset, r.def.surfaceColor || (plaza ? '#d9cfc0' : C.asphalt), null, 0.28);
 
     // sidewalks with gaps at crossings
     for (const side of [-1, 1]) {
@@ -176,7 +182,7 @@ export function buildRoads(roads, field, B, occ, rng, trees) {
         return false;
       };
       if (sw > 0.05) ribbon(out, path, side > 0 ? hw : -hw - sw, side > 0 ? hw + sw : -hw, WALK_Y - ROAD_Y, C.walk, skip, 0.3);
-      if (sw > 0.05) walkPaths.push({ path: sp, road: r });
+      if (sw > 0.05) for (const clipped of clipPathToBounds(sp, HALF - 0.4)) walkPaths.push({ path: clipped, road: r });
     }
 
     // centre dashes
@@ -190,7 +196,7 @@ export function buildRoads(roads, field, B, occ, rng, trees) {
       }
     }
     // zebra crossings when entering another road
-    if (!plaza) {
+    if (!plaza && r.kind !== 'alley') {
       for (let i = 1; i < n; i++) {
         const was = r.inside[i - 1].length > 0, is = r.inside[i].length > 0;
         if (was === is) continue;
@@ -262,7 +268,7 @@ export function buildRoads(roads, field, B, occ, rng, trees) {
     }
 
     // occupancy
-    for (const p of path.points) occ.markCircle(p.x, p.z, hw + sw - 0.1);
+    for (const p of path.points) occ.markCircle(p.x, p.z, r.kind === 'alley' ? hw + sw + 0.12 : hw + sw - 0.1);
   }
 
   B.main.addColored(geoFrom(out));

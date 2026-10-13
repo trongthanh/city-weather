@@ -43,6 +43,7 @@ export default {
       ],
       plazas: [
         { x: 3, z: 2.2, w: 4.6, d: 19.4 },
+        { x: 3, z: -5.7, w: 11.8, d: 12.2 },        // open civic block: City Hall + Uncle Hồ statue
         { x: -10.25, z: -18.0, w: 8.4, d: 6.6 },   // Công xã Paris square around Nhà thờ Đức Bà
         { x: -10.25, z: -5.75, w: 8.4, d: 12.0 },   // forecourt around chợ Bến Thành
       ],
@@ -63,10 +64,15 @@ export default {
       landmarks: [
         { type: 'canalRow', x0: -21.4, x1: -8.6, z: 20.3 },
         { type: 'landmark81', x: 3.2, z: -18.2, footprint: { type: 'rect', w: 5.6, d: 5.6 } },
-        { type: 'bitexco', x: -10.4, z: 7.8, footprint: { type: 'rect', w: 4.6, d: 4.0, x: -10.1 } },
+        // The former civic-block skyscraper, with its original dimensions/appearance.
+        { type: 'officeTower', x: -19.5, z: -18.3, ry: Math.PI / 2,
+          w: 2.8792218208312987, d: 3.1312400457449256, floors: 19, seed: 377477148,
+          footprint: { type: 'rect', w: 3.6, d: 3.8 } },
+        { type: 'bitexco', x: -10.4, z: 7.8, footprint: { type: 'rect', w: 5.8, d: 4.0, x: -9.5 } },
         { type: 'notreDame', x: -11.0, z: -18.3, ry: Math.PI / 2, footprint: { type: 'rect', w: 3.0, d: 7.2, x: -10.7 } },
         { type: 'postOffice', x: -1.55, z: -18.3, ry: -Math.PI / 2, footprint: { type: 'rect', w: 6.0, d: 2.4, x: -1.65 } },
-        { type: 'cityHall', x: 3.0, z: -9.6, ry: 0, footprint: { type: 'rect', w: 6.4, d: 2.6 } },
+        // Full civic-square frontage; keep the statue/promenade south of the steps.
+        { type: 'cityHall', x: 3.0, z: -9.6, ry: 0, footprint: { type: 'rect', w: 11.7, d: 2.4, z: -9.5 } },
         { type: 'benThanh', x: -10.25, z: -6.7, ry: 0, w: 6.8, d: 7.6, footprint: { type: 'rect', w: 7.2, d: 9.6, z: -6.1 } },
         { type: 'fountain', x: 3.0, z: 7.5 },
         { type: 'thuThiemBridge', px: 12.9, z: -6.5, dir: 1 },
@@ -83,6 +89,8 @@ export default {
   },
 
   style(rng, { phase, x, z }) {
+    // No procedural infill inside the City Hall / statue block.
+    if (x > -4.5 && x < 10.6 && z > -13.5 && z < 2) return null;
     // Bitexco's block stays open (tower + trees)
     if (x > -14.5 && x < -6 && z > 3 && z < 12.6) return null;
     const old = x < -16.5;

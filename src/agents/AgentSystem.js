@@ -120,10 +120,15 @@ export class AgentSystem {
   _free(T) { return T.agents.find((a) => !a.active); }
   _count(T) { let n = 0; for (const a of T.agents) if (a.active && !a.leaving) n++; return n; }
 
+  _roadAllowed(T, road) {
+    return road.kind !== 'plaza' && (!T.spec.minHW || road.hw >= T.spec.minHW) &&
+      (!road.def?.vehicles || road.def.vehicles.includes(T.name));
+  }
+
   _spawnRoad(T, prefill) {
     const spec = T.spec;
     if (spec.cities && !spec.cities.includes(this.city.def.id)) return null;
-    const roads = this.roads.filter((r) => r.kind !== 'plaza' && (!spec.minHW || r.hw >= spec.minHW));
+    const roads = this.roads.filter(r => this._roadAllowed(T, r));
     if (!roads.length) return null;
     let road, s, dir;
     if (prefill) {
@@ -139,7 +144,8 @@ export class AgentSystem {
       const e = pick(entries);
       [road, s, dir] = e;
     }
-    const lat = rr(spec.lat[0], spec.lat[1]) * Math.min(1, road.hw / 1.1);
+    let lat = rr(spec.lat[0], spec.lat[1]) * Math.min(1, road.hw / 1.1);
+    if (road.kind === 'alley') lat = Math.min(lat, Math.max(0, road.hw - spec.width / 2 - 0.04));
     // keep clear of others
     for (const O of Object.values(this.types)) {
       if (O.spec.kind !== 'road') continue;
@@ -152,7 +158,7 @@ export class AgentSystem {
       fade: prefill || road.path.closed ? 0 : 1, yaw: null, off: new THREE.Vector3(), phase: R() * 10, ponchoT: rr(0.05, 0.9),
       turn: null, turnPlan: null, junctionMemory: new Set(),
     });
-    a.v = a.vmax;
+    a.v = Math.min(a.vmax, road.speedLimit ?? Infinity);
     this._tint(T, a);
     return a;
   }
@@ -399,8 +405,10 @@ export class AgentSystem {
     }
     const weather = 1 - env.rain * 0.25 - env.wind * 0.3;
     const nearTurn = a.turn || (a.turnPlan && distanceAhead(path, a.s, a.turnPlan.entryS, a.dir) < 2.2);
-    const turnSpeed = Math.min(a.vmax * weather, T.name === 'bus' ? 0.8 : T.name === 'motorbike' ? 1.1 : 0.95);
-    const want = nearTurn ? turnSpeed : a.vmax * weather * (a.leaving ? 0.7 : 1);
+    const vmax = Math.min(a.vmax, a.road.speedLimit ?? Infinity, followRoad.speedLimit ?? Infinity,
+      a.turnPlan?.to.speedLimit ?? Infinity);
+    const turnSpeed = Math.min(vmax * weather, T.name === 'bus' ? 0.8 : T.name === 'motorbike' ? 1.1 : 0.95);
+    const want = nearTurn ? turnSpeed : vmax * weather * (a.leaving ? 0.7 : 1);
     const vGap = gap === Infinity ? want : Math.max(0, (gap - 0.25) * 2.2);
     const v = Math.min(want, vGap);
     a.v += (v - a.v) * Math.min(1, dt * 3);
@@ -463,7 +471,7 @@ export class AgentSystem {
     const choices = [];
     for (const { j } of crossing) {
       const to = j.to;
-      if (to.kind === 'plaza' || (T.spec.minHW && to.hw < T.spec.minHW)) continue;
+      if (!this._roadAllowed(T, to)) continue;
       for (const dir of [-1, 1]) {
         const turn = createRoadTurn({
           from: a.road, fromS: j.s, fromDir: a.dir, fromLat: a.lat,

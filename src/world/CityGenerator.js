@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { RNG, hashString } from '../core/rng.js';
 import { MeshBuilder } from '../core/MeshBuilder.js';
-import { Path } from '../core/Path.js';
+import { Path, clipPathToBounds } from '../core/Path.js';
 import { Field, Occupancy, HALF, WATER_LEVEL } from './Field.js';
 import { buildGround, buildSkirt, buildWater } from './terrain.js';
 import { prepareRoads, buildRoads, DECK_Y } from './roads.js';
@@ -56,25 +56,29 @@ export function generateCity(def, { lowDetail = false } = {}) {
   const { walkPaths, lamps } = buildRoads(roads, field, B, occ, rng, trees);
 
   // ---- extra walkways (promenades) — paved ribbon
-  const extraWalks = (layout.walkways || []).map((w) => {
-    const path = w.path ? new Path(w.path.points.map((q) => q.clone().setY(0.03)), w.path.closed) : w.ellipse
+  const extraWalks = (layout.walkways || []).flatMap((w) => {
+    const base = w.path ? new Path(w.path.points.map((q) => q.clone().setY(0.03)), w.path.closed) : w.ellipse
       ? Path.ellipse(w.ellipse.x, w.ellipse.z, w.ellipse.rx, w.ellipse.rz, { spacing: 0.4, y: 0.03 })
       : Path.fromControl(w.pts, { closed: !!w.closed, smooth: w.smooth !== false, spacing: 0.4, y: 0.03 });
-    if (w.paved !== false) {
-      const width = w.width || 0.55;
-      const n = path.points.length;
-      for (let i = 0; i < (path.closed ? n : n - 1); i++) {
-        const p = path.points[i], q = path.points[(i + 1) % n];
-        B.main.slab(p, q, width, 0.03, w.color || '#ddd3c2');
+    const width = w.width ?? 0.55;
+    // Keep the WHOLE ribbon and pedestrian offsets on the tile, not just its
+    // centreline. River control curves intentionally extend beyond the terrain.
+    return clipPathToBounds(base, HALF - Math.max(0.4, width / 2 + 0.04)).map(path => {
+      if (w.paved !== false) {
+        const n = path.points.length;
+        for (let i = 0; i < (path.closed ? n : n - 1); i++) {
+          const p = path.points[i], q = path.points[(i + 1) % n];
+          B.main.slab(p, q, width, 0.03, w.color || '#ddd3c2');
+        }
+        for (const p of path.points) occ.markCircle(p.x, p.z, width / 2 + 0.1);
       }
-      for (const p of path.points) occ.markCircle(p.x, p.z, width / 2 + 0.1);
-    }
-    return { path, walkway: true };
+      return { path, walkway: true };
+    });
   });
 
   // ---- landmarks
   const landmarkSpots = [], landmarkPools = [];
-  const lmCtx = { rng, field, roads, deckY: DECK_Y + 0.05 };
+  const lmCtx = { rng, field, roads, palette: def.palette, deckY: DECK_Y + 0.05 };
   for (const L of layout.landmarks || []) {
     const fp = L.footprint;
     if (fp) {
@@ -222,12 +226,14 @@ export function generateCity(def, { lowDetail = false } = {}) {
   }
 
   // ---- agent paths
-  const waterPaths = (layout.waterways || []).map((w) => ({
-    kind: w.kind || 'boat',
-    path: w.ellipse
+  const waterPaths = (layout.waterways || []).flatMap((w) => {
+    const base = w.ellipse
       ? Path.ellipse(w.ellipse.x, w.ellipse.z, w.ellipse.rx, w.ellipse.rz, { spacing: 0.5, y: WATER_LEVEL })
-      : Path.fromControl(w.pts, { closed: !!w.closed, spacing: 0.5, y: WATER_LEVEL }),
-  }));
+      : Path.fromControl(w.pts, { closed: !!w.closed, spacing: 0.5, y: WATER_LEVEL });
+    // Reserve space for the bow, lateral drift and wave rotations. Terrain/water
+    // source curves remain untouched; only visible boat routes are clipped.
+    return clipPathToBounds(base, HALF - 1.2).map(path => ({ kind: w.kind || 'boat', path }));
+  });
 
   Object.assign(stats, { buildings: buildingCount, trees: trees.length, ms: Math.round(performance.now() - t0) });
   for (const m of Object.values(meshes)) if (m) stats[m.name] = m.geometry.attributes.position.count;
