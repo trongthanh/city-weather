@@ -19,8 +19,8 @@ const CONFIG = {
   operaHouse: {
     // Illuminate both the portico and the rear visible from Hanoi's default viewpoint.
     spots: [
-      { from: [-1.4, 0.14, 2.0], to: [-1.3, 0.95, 1.06], intensity: 5, distance: 5, angle: 0.75 },
-      { from: [1.4, 0.14, -1.9], to: [0.9, 0.95, -1.36], intensity: 5, distance: 5, angle: 0.75 },
+      { from: [-1.4, 0.14, 2.0], to: [-1.1, 1.65, 1.18], intensity: 8, distance: 6, angle: 0.75 },
+      { from: [1.4, 0.14, -1.9], to: [0.9, 1.65, -1.34], intensity: 7, distance: 6, angle: 0.75 },
     ],
   },
   cityHall: {

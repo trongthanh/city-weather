@@ -40,10 +40,10 @@ for (const [key, actual] of records) {
     lowered++;
     const [x, z] = key.split(',').map(Number);
     assert.ok(Math.abs(x - limit.x) < limit.w / 2 && Math.abs(z - limit.z) < limit.d / 2);
-    assert.equal(before.spec.floors, 4);
+    assert.ok(before.spec.floors > 1, 'unlimited foreground house would obscure the forecourt');
     assert.equal(actual.spec.floors, 1, 'entrance-blocking house becomes one storey');
     assert.ok(actual.box[1][1] < 1.3, 'actual tiled roof is lowered, not just metadata');
-    assert.ok(before.box[1][1] > 3);
+    assert.ok(before.box[1][1] > 1.3, 'unlimited roof would exceed the one-storey height');
   } else assert.deepEqual(actual, before, `unrelated building unchanged: ${key}`);
 }
 assert.equal(lowered, 1, 'exactly one house lowered');

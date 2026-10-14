@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { P, hipRoof, normalizeGeometry } from '../core/MeshBuilder.js';
-import { WATER_LEVEL, BED } from './Field.js';
+import { P, hipRoof, normalizeGeometry, geometryFromTris } from '../core/MeshBuilder.js';
+import { WATER_LEVEL, BED, HALF } from './Field.js';
 import { addTree } from './trees.js';
 import { officeWindowRow, curvedOfficeWindowRow } from './officeWindows.js';
 import { tower } from './buildings.js';
@@ -942,69 +942,185 @@ export function stJoseph(B, { x, z, ry = 0, scale = 1 }) {
   B.main.pop();
 }
 
-/** Nhà Hát Lớn Hà Nội (Opera House): cream French-colonial with colonnade, mansards and a central dome. Front +z. */
+/** Nhà Hát Lớn Hà Nội: giant-order colonnade, corner mansards and raised slate auditorium roof. Front +z. */
 export function operaHouse(B, { x, z, ry = 0, scale = 1 }) {
-  const cream = '#f2dfb2', white = '#fbf6ea', roof = '#7f8c95';
-  B.main.push(x, 0, z, ry, scale);
-  B.lit.push(x, 0, z, ry, scale);
-  B.lamp.push(x, 0, z, ry, scale);
-  // Recessed arched glazing, pale surrounds, sills and cross mullions.
-  // Windows on every side matter: the default view sees the rear of this rotated landmark.
+  const cream = '#edcf91', white = '#fff1d7', stone = '#c8bfab', roof = '#354b57';
+  const metal = '#536872', gold = '#c6a56c', iron = '#444d51';
+  for (const b of [B.main, B.lit, B.lamp]) b.push(x, 0, z, ry, scale);
+  // All four elevations remain detailed: the default camera sees the rear.
   const window = (wx, wy, wz, w = 0.26, h = 0.34, face = 0) => {
     B.main.push(wx, 0, wz, face);
     B.lit.push(wx, 0, wz, face);
     B.main.quad(0, wy, 0.006, w + 0.1, h + 0.08, white);
     B.main.put(P.disc(12), white, { y: wy + h / 2, z: 0.007, sx: w + 0.1, sy: w + 0.1 });
-    B.lit.quad(0, wy, 0.014, w, h, '#536d76');
-    B.lit.put(P.disc(12), '#536d76', { y: wy + h / 2, z: 0.015, sx: w, sy: w });
-    B.main.box(0, wy - h / 2 - 0.045, 0.04, w + 0.14, 0.05, 0.08, white);
+    B.lit.quad(0, wy, 0.014, w, h, '#61726b');
+    B.lit.put(P.disc(12), '#61726b', { y: wy + h / 2, z: 0.015, sx: w, sy: w });
+    B.main.box(0, wy - h / 2 - 0.045, 0.02, w + 0.14, 0.05, 0.04, white);
     B.main.box(0, wy - h / 2, 0.022, 0.024, h + w / 2, 0.015, white);
     B.main.box(0, wy + 0.025, 0.022, w, 0.022, 0.015, white);
     B.lit.pop();
     B.main.pop();
   };
-  B.main.box(0, 0, 0, 4.2, 0.12, 2.9, '#e2d9c6');
-  B.main.box(0, 0.12, -0.2, 4.0, 1.25, 2.3, cream);
-  B.main.box(0, 1.37, -0.2, 4.1, 0.08, 2.4, white);
-  B.main.put(hipRoof(4.0, 2.3, 0.45), roof, { y: 1.45, z: -0.2 }, true);
-  // central pavilion with dome
-  B.main.box(0, 0.12, 0.25, 1.7, 1.75, 2.2, cream);
-  B.main.box(0, 1.87, 0.25, 1.8, 0.08, 2.3, white);
-  B.main.box(0, 1.95, 0.25, 1.3, 0.35, 1.3, cream);
-  B.main.put(P.hemi(14), roof, { y: 2.3, z: 0.25, sx: 1.25, sy: 1.0, sz: 1.25 });
-  B.main.cyl(0, 2.78, 0.25, 0.05, 0.3, '#d9b440', 6);
-  B.main.box(0.18, 2.95, 0.25, 0.3, 0.2, 0.015, '#da251d');
-  // corner pavilions with small domes
-  for (const sx of [-1, 1]) {
-    B.main.box(sx * 1.65, 0.12, 0.05, 0.8, 1.5, 2.0, cream);
-    B.main.put(hipRoof(0.9, 2.1, 0.55), roof, { x: sx * 1.65, y: 1.62, z: 0.05 }, true);
+  const balustrade = (cx, y, cz, length, face = 0) => {
+    B.main.push(cx, 0, cz, face);
+    B.main.box(0, y, 0, length, 0.04, 0.075, white);
+    B.main.box(0, y + 0.19, 0, length, 0.045, 0.075, white);
+    const n = Math.round(length / 0.14);
+    for (let i = 0; i <= n; i++) {
+      const u = -length / 2 + i * length / n;
+      B.main.cyl(u, y + 0.04, 0, 0.017, 0.15, white, 6);
+      B.main.sphere(u, y + 0.115, 0, 0.023, white, 1.4, 6);
+    }
+    B.main.pop();
+  };
+  const balcony = (wx, wz, face = 0, depth = 1) => {
+    B.main.push(wx, 0, wz, face);
+    B.main.box(0, 1.14, 0.10 * depth, 0.38, 0.055, 0.24 * depth, white);
+    for (let i = 0; i <= 6; i++) {
+      const a = i * Math.PI / 6;
+      const p = V(Math.cos(a) * 0.18, 1.19, (0.04 + Math.sin(a) * 0.18) * depth);
+      B.main.beam(p, p.clone().setY(1.39), 0.008, iron, 4);
+      if (i < 6) B.main.beam(p.clone().setY(1.39),
+        V(Math.cos(a + Math.PI / 6) * 0.18, 1.39, (0.04 + Math.sin(a + Math.PI / 6) * 0.18) * depth), 0.009, iron, 4);
+    }
+    for (const s of [-1, 1]) B.main.beam(V(s * 0.13, 1.02, 0), V(s * 0.13, 1.14, 0.19 * depth), 0.024, white, 4);
+    B.main.pop();
+  };
+  // Closed, normalized roof shells with a concave taper, not a generic hemispherical dome.
+  const mansard = (cx, base, cz, w, d, h, profile) => {
+    const rings = profile.map(([t, f]) => [[-w * f / 2, h * t, -d * f / 2], [w * f / 2, h * t, -d * f / 2],
+      [w * f / 2, h * t, d * f / 2], [-w * f / 2, h * t, d * f / 2]]);
+    const tris = [];
+    for (let k = 0; k < rings.length - 1; k++) for (let j = 0; j < 4; j++) {
+      const n = (j + 1) % 4;
+      tris.push([rings[k][j], rings[k][n], rings[k + 1][n]], [rings[k][j], rings[k + 1][n], rings[k + 1][j]]);
+    }
+    for (const ring of [rings[0], rings.at(-1)]) tris.push([ring[0], ring[1], ring[2]], [ring[0], ring[2], ring[3]]);
+    B.main.put(geometryFromTris(tris, V(0, h / 2, 0)), roof, { x: cx, y: base, z: cz }, true);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) for (let i = 0; i < profile.length - 1; i++) {
+      const [t, f] = profile[i], [t1, f1] = profile[i + 1];
+      B.main.beam(V(cx + sx * w * f / 2, base + h * t + 0.009, cz + sz * d * f / 2),
+        V(cx + sx * w * f1 / 2, base + h * t1 + 0.009, cz + sz * d * f1 / 2), 0.014, metal, 5);
+    }
+  };
+
+  // Broad stair apron and rusticated two-storey base; preserve the existing footprint.
+  B.main.box(0, 0, 0.06, 4.22, 0.28, 3.04, stone);
+  for (let i = 0; i < 8; i++) {
+    const front = 2.20 - i * 0.085;
+    B.main.box(0, i * 0.035, (1.55 + front) / 2, 3.84 - i * 0.045, 0.035, front - 1.55, stone);
   }
-  // colonnade + terrace
-  B.main.box(0, 0.12, 1.45, 1.8, 0.1, 0.5, white);
-  for (let i = 0; i < 6; i++) B.main.cyl(-0.75 + i * 0.3, 0.22, 1.55, 0.045, 0.85, white, 8);
-  B.main.box(0, 1.07, 1.45, 1.85, 0.12, 0.55, white);
-  for (let i = 0; i < 4; i++) window(-0.51 + i * 0.34, 1.42, 1.355, 0.23, 0.3);
-  for (let f = 0; f < 2; f++) for (const sx of [-1, 1]) {
-    for (let i = 0; i < 2; i++) window(sx * (1.44 + i * 0.4), 0.44 + f * 0.58, 1.055, 0.24, 0.32);
-    for (const wz of [-0.58, 0.05, 0.68]) window(sx * 2.055, 0.44 + f * 0.58, wz, 0.28, 0.34, sx * Math.PI / 2);
+  B.main.box(0, 0.28, -0.09, 4.12, 1.96, 2.50, cream);
+  for (const y of [0.40, 0.59, 0.78, 0.97]) {
+    B.main.box(0, y, -0.09, 4.14, 0.017, 2.52, '#d5b985');
   }
-  // Two full rows on the otherwise blank rear wall, visible from the initial camera angle.
-  for (let f = 0; f < 2; f++) for (let i = 0; i < 7; i++) {
-    window(-1.68 + i * 0.56, 0.42 + f * 0.57, -1.355, 0.29, 0.3, Math.PI);
+  B.main.box(0, 1.13, -0.09, 4.16, 0.055, 2.54, white);
+  B.main.box(0, 2.24, -0.02, 4.18, 0.10, 2.72, white);
+  B.main.box(0, 2.34, -0.02, 4.12, 0.13, 2.64, cream);
+  B.main.box(0, 2.47, -0.02, 4.22, 0.09, 2.78, white);
+  // Dentils and floral medallions across the monumental entablature.
+  for (let i = 0; i < 24; i++) B.main.box(-1.96 + i * 3.92 / 23, 2.27, 1.355, 0.058, 0.075, 0.055, white);
+  for (const wx of [-1.7, -1, -0.5, 0, 0.5, 1, 1.7]) B.main.put(P.disc(10), gold,
+    { x: wx, y: 2.40, z: 1.305, sx: 0.12, sy: 0.10 });
+
+  // Six tall Ionic-like columns span both floors, with five recessed upper bays.
+  for (let i = 0; i < 6; i++) {
+    const wx = -1.25 + i * 0.5;
+    B.main.box(wx, 0.28, 1.46, 0.20, 0.10, 0.20, white);
+    B.main.cyl(wx, 0.38, 1.46, 0.074, 1.68, white, 12, 0.060);
+    B.main.box(wx, 2.06, 1.46, 0.19, 0.10, 0.16, white);
+    for (const s of [-1, 1]) B.main.sphere(wx + s * 0.073, 2.10, 1.51, 0.038, white, 0.8, 8);
+    B.main.box(wx, 2.16, 1.46, 0.21, 0.08, 0.19, white);
   }
-  // Rear pilasters and side cornices break up the large solid walls.
-  for (const wx of [-1.96, -1.4, -0.84, 0.84, 1.4, 1.96]) B.main.box(wx, 0.12, -1.37, 0.055, 1.25, 0.06, white);
-  for (const sx of [-1, 1]) B.main.box(sx * 2.065, 0.74, 0.05, 0.055, 0.045, 2.02, white);
-  // Tall glazed entrance doors behind the portico, plus glowing porch lanterns.
-  for (const wx of [-0.48, 0, 0.48]) window(wx, 0.53, 1.356, 0.27, 0.62);
-  for (const sx of [-1, 1]) {
-    B.main.box(sx * 0.78, 0.68, 1.39, 0.08, 0.18, 0.08, '#4c4540');
-    B.lamp.box(sx * 0.78, 0.71, 1.44, 0.055, 0.11, 0.055, '#ffe9bb');
+  B.main.box(0, 2.24, 1.42, 2.95, 0.10, 0.45, white);
+  for (let i = 0; i < 5; i++) {
+    const wx = -1 + i * 0.5;
+    window(wx, 0.64, 1.161, 0.29, 0.55);
+    window(wx, 1.65, 1.161, 0.27, 0.65);
+    balcony(wx, 1.18);
+    B.main.box(wx, 2.09, 1.20, 0.34, 0.045, 0.08, white);
+    B.main.put(P.pyramid(), white, { x: wx, y: 2.16, z: 1.20, sx: 0.32, sy: 0.09, sz: 0.14 });
   }
-  B.main.box(0, 0, 1.95, 2.0, 0.06, 0.5, '#e2d9c6');
-  B.lamp.pop();
-  B.lit.pop();
-  B.main.pop();
+
+  // Four corner pavilions: steep curved mansards, oval dormers and stone finials.
+  for (const sx of [-1, 1]) for (const cz of [-0.89, 0.82]) {
+    const cx = sx * 1.70;
+    B.main.box(cx, 0.28, cz, 0.70, 2.15, 0.84, cream);
+    for (const s of [-1, 1]) B.main.box(cx + s * 0.27, 0.28, cz + (cz > 0 ? 0.43 : -0.43), 0.065, 1.96, 0.055, white);
+    B.main.box(cx, 2.43, cz, 0.80, 0.15, 0.94, white);
+    mansard(cx, 2.58, cz, 0.80, 0.94, 0.56, [[0, 1], [0.14, 0.94], [0.55, 0.65], [0.86, 0.33], [1, 0.23]]);
+    const face = cz > 0 ? 0 : Math.PI, dz = cz > 0 ? 1 : -1;
+    for (const b of [B.main, B.lit]) b.push(cx, 0, cz + dz * 0.41, face);
+    B.main.box(0, 2.77, -0.06, 0.23, 0.19, 0.15, white);
+    B.main.put(P.disc(16), white, { y: 2.88, z: 0.01, sx: 0.21, sy: 0.17 });
+    B.lit.put(P.disc(16), '#61726b', { y: 2.88, z: 0.017, sx: 0.12, sy: 0.085 });
+    B.main.box(0, 2.79, 0.025, 0.25, 0.025, 0.04, white);
+    B.main.pop(); B.lit.pop();
+    B.main.box(cx, 3.14, cz, 0.24, 0.05, 0.25, white);
+    B.main.sphere(cx, 3.24, cz, 0.065, white, 1.35, 8);
+    B.main.cyl(cx, 3.28, cz, 0.014, 0.18, gold, 5);
+    window(cx, 0.66, cz + dz * 0.421, 0.30, 0.53, face);
+    window(cx, 1.62, cz + dz * 0.421, 0.29, 0.68, face);
+  }
+
+  // Raised auditorium drum and large dark roof behind the low, balustraded front terrace.
+  B.main.box(0, 2.25, -0.36, 2.72, 0.48, 1.70, cream);
+  B.main.box(0, 2.69, -0.36, 2.90, 0.075, 1.83, white);
+  for (const side of [-1, 1]) for (const wx of [-1.05, -0.52, 0, 0.52, 1.05]) {
+    for (const b of [B.main, B.lit]) b.push(wx, 0, -0.36 + side * 0.851, side > 0 ? 0 : Math.PI);
+    B.main.put(P.disc(14), white, { y: 2.52, z: 0.006, sx: 0.18, sy: 0.18 });
+    B.lit.put(P.disc(14), '#61726b', { y: 2.52, z: 0.014, sx: 0.11, sy: 0.11 });
+    B.main.box(0.19, 2.31, 0.013, 0.035, 0.35, 0.035, white);
+    B.main.pop(); B.lit.pop();
+  }
+  const profile = [[0, 1], [0.10, 0.97], [0.86, 0.65], [1, 0.64]];
+  mansard(0, 2.765, -0.36, 2.96, 1.88, 0.78, profile);
+  B.main.put(hipRoof(1.90, 1.21, 0.14), roof, { y: 3.545, z: -0.36 }, true);
+  for (const side of [-1, 1]) for (const u of [-0.6, -0.2, 0.2, 0.6]) for (let i = 0; i < profile.length - 1; i++) {
+    const [t, f] = profile[i], [t1, f1] = profile[i + 1];
+    B.main.beam(V(u * 1.48 * f, 2.775 + t * 0.78, -0.36 + side * (0.94 * f + 0.008)),
+      V(u * 1.48 * f1, 2.775 + t1 * 0.78, -0.36 + side * (0.94 * f1 + 0.008)), 0.009, metal, 4);
+  }
+  balustrade(0, 2.56, 1.34, 4.10);
+  for (const side of [-1, 1]) balustrade(side * 2.055, 2.56, -0.05, 2.65, side * Math.PI / 2);
+  balustrade(0, 3.56, -0.36, 1.88);
+  for (const wx of [-0.94, 0.94]) {
+    B.main.sphere(wx, 3.82, -0.36, 0.048, white, 1.3, 8);
+    B.main.cyl(wx, 3.85, -0.36, 0.009, 0.19, gold, 5);
+  }
+  B.main.cyl(0, 2.65, 0.92, 0.016, 0.93, gold, 6);
+  B.main.box(0.18, 3.30, 0.92, 0.36, 0.22, 0.014, '#da251d');
+  B.main.put(P.disc(5), '#ffde43', { x: 0.18, y: 3.41, z: 0.929, sx: 0.065, sy: 0.065 });
+
+  // Side/rear rows, pilasters and balconies must survive rotation to the default rear view.
+  for (const side of [-1, 1]) for (const wz of [-1.03, -0.48, 0.08, 0.66]) {
+    window(side * 2.061, 0.66, wz, 0.26, 0.48, side * Math.PI / 2);
+    window(side * 2.061, 1.63, wz, 0.26, 0.62, side * Math.PI / 2);
+    balcony(side * 2.04, wz, side * Math.PI / 2, 0.3);
+  }
+  for (let i = 0; i < 7; i++) {
+    const wx = -1.65 + i * 0.55;
+    // Corner rear panes already belong to their slightly projecting pavilions.
+    if (i > 0 && i < 6) {
+      window(wx, 0.65, -1.341, 0.27, 0.48, Math.PI);
+      window(wx, 1.61, -1.341, 0.28, 0.62, Math.PI);
+    }
+    B.main.box(wx + 0.23, 0.28, -1.365, 0.055, 1.96, 0.055, white);
+  }
+  for (const side of [-1, 1]) {
+    B.main.box(side * 2.075, 1.13, -0.09, 0.04, 0.05, 2.50, white);
+    // Merged poster boards and porch/stair lamps, not extra independent lights.
+    B.main.box(side * 1.96, 0.34, 1.30, 0.16, 0.56, 0.04, '#304d72');
+    B.main.quad(side * 1.96, 0.72, 1.323, 0.10, 0.06, gold);
+    B.main.cyl(side * 1.90, 0.10, 1.98, 0.022, 1.08, iron, 6);
+    B.main.beam(V(side * 1.90 - 0.10, 1.16, 1.98), V(side * 1.90 + 0.10, 1.16, 1.98), 0.015, iron, 5);
+    for (const s of [-1, 1]) B.lamp.sphere(side * 1.90 + s * 0.10, 1.23, 1.98, 0.044, '#ffe4b0', 1.2, 8);
+  }
+  for (const wx of [-1.5, -0.75, 0.75, 1.5]) {
+    B.main.box(wx, 0.74, 1.23, 0.065, 0.17, 0.07, iron);
+    B.lamp.box(wx, 0.77, 1.27, 0.046, 0.10, 0.05, '#ffe4b0');
+  }
+  for (const b of [B.main, B.lit, B.lamp]) b.pop();
 }
 
 /** Cầu Trần Thị Lý: sail-shaped single inclined pylon mid-river with fanned stay cables (deck along x). */
@@ -1031,31 +1147,71 @@ export function tranThiLyBridge(B, { x, z, deckY }) {
   B.lamp.sphere(top.x - 0.2, top.y + 0.75, top.z, 0.07, '#ff6b5a');
 }
 
-/** Cầu Chương Dương (partial): concrete box-girder bridge over the Red River running off the tile edge.
- *  Adds girder faces, rounded piers and lamp rows on top of the auto-generated road bridge. */
-export function chuongDuongBridge(B, { x0, x1, z, roads, hw = 1.1 }) {
-  const r = roads.find((q) => q.bridge && q.path.distance((x0 + x1) / 2, z) < 0.5);
+/** Cầu Chương Dương: pale steel through-truss with cantilevered outer lanes.
+ *  The Red River crossing continues off-tile; the road owns all driving/walking surfaces. */
+export function chuongDuongBridge(B, { x0, x1, z, roads }) {
+  const r = roads.find((q) => q.name === 'Cầu Chương Dương' && q.bridge);
   if (!r) return;
   const yAt = (x) => r.path.pointAt(r.path.nearest(x, z).s).y;
-  const w = hw + 0.6;
-  for (let x = x0; x < x1; x += 0.5) {
-    const y = yAt(x + 0.25);
-    if (y < 0.15) continue;
-    for (const s of [-1, 1]) B.main.box(x + 0.25, y - 0.34, z + s * (w + 0.02), 0.52, 0.3, 0.06, s > 0 ? '#c9c4b8' : '#bdb8ac');
-    B.main.box(x + 0.25, y - 0.36, z, 0.52, 0.06, w * 2, '#a9a49a');
-  }
-  let n = 0;
-  for (let x = x0 + 0.6; x < x1; x += 1.6, n++) {
-    const y = yAt(x);
-    if (y < 0.2) continue;
-    for (const s of [-1, 1]) {
-      const lz = z + s * (w - 0.12);
-      B.main.cyl(x, y + 0.04, lz, 0.025, 0.9, '#5c6670', 5);
-      B.lamp.box(x, y + 0.92, lz - s * 0.1, 0.14, 0.05, 0.22, '#fff1cf');
+  const steel = '#b7cbd0', edge = '#7e9ca7', concrete = '#aaa99e';
+  const end = Math.min(x1, HALF) - 0.09; // include beam thickness within the tile
+  const truss = 1.30, outer = r.hw + r.sw - 0.07;
+  const height = 1.65, panels = 4, step = (end - x0) / panels;
+  const bottom = (x, side) => V(x, yAt(x) + 0.10, z + side * truss);
+  const member = (a, b, width, color) => B.main.beam(a, b, width / 2, color, 4);
+  // Sloping portal end posts, then the characteristic level, open lattice roof.
+  const top = (x, side) => V(x === x0 ? x + 0.40 : x, yAt(x) + height, z + side * truss);
+  for (const side of [-1, 1]) {
+    member(bottom(x0, side), bottom(end, side), 0.12, edge);
+    member(top(x0, side), top(end, side), 0.13, steel);
+    for (let i = 0; i <= panels; i++) {
+      const x = x0 + i * step;
+      member(bottom(x, side), top(x, side), 0.11, steel);
+      if (i === panels) continue;
+      const next = x0 + (i + 1) * step;
+      // Alternating diagonals read as a repeated triangular steel side wall.
+      member(i % 2 ? top(x, side) : bottom(x, side),
+        i % 2 ? bottom(next, side) : top(next, side), 0.105, steel);
+      for (const p of [bottom(x, side), top(x, side)]) {
+        B.main.box(p.x, p.y - 0.09, p.z, 0.18, 0.18, 0.035, edge);
+      }
     }
-    if (n % 2 === 0) {
-      B.main.cyl(x, BED, z, 0.38, y - 0.4 - BED, '#cfc9bf', 12);
-      B.main.box(x, y - 0.48, z, 0.6, 0.14, w * 2, '#bdb8ac');
+    // The outer lanes lie outside the two trusses; rails stay at the deck edge.
+    for (const h of [0.16, 0.34]) B.main.beam(V(x0, yAt(x0) + h, z + side * outer),
+      V(end, yAt(end) + h, z + side * outer), 0.018, steel, 4);
+    for (let x = x0; x <= end; x += 0.45) {
+      B.main.box(x, yAt(x) + 0.04, z + side * outer, 0.035, 0.32, 0.035, steel);
+      const len = Math.min(0.45, end - x);
+      if (len > 0) B.main.box(x + len / 2, yAt(x) + 0.01, z + side * truss,
+        len, 0.07, 0.13, Math.round((x - x0) / 0.45) % 2 ? '#eee8da' : '#b44e40');
+    }
+  }
+  for (let i = 0; i <= panels; i++) {
+    const x = x0 + i * step;
+    member(top(x, -1), top(x, 1), 0.10, steel);
+    member(V(x, yAt(x) - 0.20, z - outer), V(x, yAt(x) - 0.20, z + outer), 0.13, edge);
+    if (i < panels) {
+      const next = x0 + (i + 1) * step;
+      member(top(x, -1), top(next, 1), 0.055, edge);
+      member(top(x, 1), top(next, -1), 0.055, edge);
+    }
+  }
+  // Broad rounded pier caps and paired supports, rather than duplicate generic piers.
+  for (const x of [x0 + step, x0 + 3 * step]) {
+    const y = yAt(x);
+    B.main.box(x, y - 0.43, z, 0.58, 0.18, outer * 2 - 0.58, concrete);
+    for (const side of [-1, 1]) {
+      B.main.cyl(x, BED, z + side * 0.95, 0.24, y - 0.43 - BED, '#969b95', 10);
+      B.main.cyl(x, y - 0.43, z + side * (outer - 0.29), 0.29, 0.18, concrete, 12);
+    }
+  }
+  for (let x = x0 + 0.65; x < end - 0.2; x += 1.8) {
+    const y = yAt(x);
+    for (const side of [-1, 1]) {
+      const lz = z + side * (outer - 0.05);
+      B.main.cyl(x, y + 0.04, lz, 0.022, 1.12, '#687d86', 5);
+      B.main.beam(V(x, y + 1.16, lz), V(x, y + 1.21, lz - side * 0.22), 0.018, steel, 4);
+      B.lamp.box(x, y + 1.18, lz - side * 0.22, 0.12, 0.04, 0.16, '#fff1cf');
     }
   }
 }

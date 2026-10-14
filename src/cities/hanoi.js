@@ -8,6 +8,7 @@ import { pointInPoly } from '../world/Field.js';
 
 const LX = 0.5; // lake centre x
 const DYKE = 15.2; // Trần Quang Khải dyke road (x)
+const BRIDGE_Z = -4.5; // Chương Dương is northeast of Hoàn Kiếm, not level with its middle.
 const RED_RIVER = [[20.6, -26], [21.0, -8], [21.6, 8], [22.6, 26]];
 
 // Outline of Hồ Hoàn Kiếm in map pixels (x → east, y → south), clockwise from the north-west.
@@ -30,6 +31,44 @@ function smoothLoop(path, iters) {
   return new Path(pts, true);
 }
 
+/** A wide offset at the lake's northeast indentation can fold into a tiny loop.
+ * Cut the short self-crossing arc, then round only that repair so both sidewalks
+ * and traffic lanes have a usable bend radius. Leave the rest of the traced ring alone. */
+function untangleRoadRing(path) {
+  let pts = path.points.map(p => p.clone());
+  const repairs = [];
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (let i = 0; i < pts.length && !changed; i++) for (let j = i + 2; j < pts.length; j++) {
+      if (i === 0 && j === pts.length - 1) continue; // adjacent across the closed seam
+      const a = pts[i], b = pts[(i + 1) % pts.length], c = pts[j], d = pts[(j + 1) % pts.length];
+      const dx = b.x - a.x, dz = b.z - a.z, ex = d.x - c.x, ez = d.z - c.z;
+      const det = dx * ez - dz * ex;
+      if (Math.abs(det) < 1e-9) continue;
+      const wx = c.x - a.x, wz = c.z - a.z;
+      const t = (wx * ez - wz * ex) / det, u = (wx * dz - wz * dx) / det;
+      if (t <= 1e-6 || t >= 1 - 1e-6 || u <= 1e-6 || u >= 1 - 1e-6) continue;
+      const hit = a.clone().lerp(b, t);
+      repairs.push(hit);
+      // Keep the long outer contour, including when the little loop crosses the seam.
+      if (j - i < pts.length / 2) pts.splice(i + 1, j - i, hit);
+      else pts = [hit, ...pts.slice(i + 1, j + 1)];
+      changed = true;
+      break;
+    }
+  }
+  if (!repairs.length) return path;
+  for (let k = 0; k < 3; k++) pts = pts.map((p, i) => {
+    const distance = repairs.reduce((best, q) => Math.min(best, p.distanceTo(q)), Infinity);
+    const weight = THREE.MathUtils.clamp((3.5 - distance) / 2, 0, 1);
+    if (!weight) return p;
+    const a = pts[(i - 1 + pts.length) % pts.length], b = pts[(i + 1) % pts.length];
+    return p.clone().lerp(a.clone().add(b).multiplyScalar(0.25).addScaledVector(p, 0.5), weight);
+  });
+  return new Path(pts, true);
+}
+
 export default {
   id: 'hanoi',
   seed: 'ha-noi-1010',
@@ -48,7 +87,7 @@ export default {
     // Hồ Hoàn Kiếm traced from the map (px → scene units; north = -z)
     const lake = Path.fromControl(LAKE_PX.map(([px, py]) => [LX + (px - 540) * 0.026, (py - 670) * 0.0205]), { closed: true, spacing: 0.35 });
     const outward = (d) => { const o = lake.offset(d); return pointInPoly(lake.points, o.points[0].x, o.points[0].z) ? lake.offset(-d) : o; };
-    const ring = smoothLoop(outward(3.6), 10);
+    const ring = untangleRoadRing(smoothLoop(outward(3.6), 10));
     const prom = smoothLoop(outward(1.25), 6);
     const treeRing = smoothLoop(outward(2.35), 8);
     const parkPoly = smoothLoop(outward(1.98), 8);
@@ -56,7 +95,7 @@ export default {
     const near = (fn) => ring.points.reduce((b, p) => (fn(p) < fn(b) ? p : b));
     const N = near((p) => (p.z < 0 ? Math.abs(p.x - LX) : 99));
     const S = near((p) => (p.z > 0 ? Math.abs(p.x - LX - 1.6) : 99));
-    const E = near((p) => (p.x > LX ? Math.abs(p.z) : 99));
+    const E = near((p) => (p.x > LX ? Math.abs(p.z - BRIDGE_Z) : 99));
     // Two tiny east-west lanes flank the cathedral and join the west lake ring.
     const cathedralAlleys = [-3.7, 0.7].map((az, i) => {
       const end = near(p => p.x < LX ? Math.abs(p.z - az) : 99);
@@ -87,7 +126,8 @@ export default {
         { name: 'ring', path: ring, trees: 0, lampSpacing: 5.5 },
         { pts: [[N.x, N.z], [N.x, -22]], smooth: false, trees: 2.6 },
         { pts: [[S.x, S.z], [S.x, 22]], smooth: false, trees: 2.6 },
-        { name: 'Cầu Chương Dương', pts: [[E.x, E.z], [22, E.z]], smooth: false, hw: 1.1, noRail: false },
+        { name: 'Cầu Chương Dương', pts: [[E.x, E.z], [DYKE, BRIDGE_Z], [22, BRIDGE_Z]], smooth: false,
+          hw: 1.65, sw: 0.28, noRail: true, noPiers: true, lamps: false },
         { name: 'Trần Quang Khải (đê sông Hồng)', pts: [[DYKE, -22], [DYKE, 22]], smooth: false, hw: 1.05, trees: 2.6, frontageSide: 1 },
         { pts: [[-22, -19.6], [DYKE, -19.6]], smooth: false, hw: 1.0, trees: 2.8 },
         { pts: [[-22, 19.6], [DYKE, 19.6]], smooth: false, hw: 1.0, trees: 2.8 },
@@ -99,13 +139,12 @@ export default {
         { type: 'ngocSonTemple', x: LX, z: -7.75, ry: 0, footprint: { type: 'circle', r: 1.6 } },
         { type: 'hucBridge', from: [LX + 1.35, -7.7], to: [LX + 4.1, -8.05], footprint: { type: 'circle', x: LX + 4.1, z: -8.05, r: 0.5 } },
         { type: 'penTower', x: LX + 3.6, z: -9.45, footprint: { type: 'circle', r: 0.42 } },
-        { type: 'lakePavilion', x: LX - 4.75, z: -8.6, ry: 0.5, footprint: { type: 'rect', w: 2.4, d: 1.8 } },
         { type: 'vanMieu', x: -17.0, z: 10.3, ry: 0, footprint: { type: 'rect', w: 6.4, d: 15.4 } },
         { type: 'hcmMausoleum', x: -16.5, z: -11.6, ry: Math.PI / 2, footprint: { type: 'rect', w: 10.0, d: 9.4 } },
         { type: 'oneLegPagoda', x: -10.9, z: -15.4, scale: 2.2, footprint: { type: 'circle', r: 2.5 } },
         { type: 'stJoseph', x: -15.4, z: -1.5, ry: Math.PI / 2, scale: 1.5, footprint: { type: 'rect', w: 3.4, d: 6.8, x: -15.05 } },
         { type: 'operaHouse', x: 11.1, z: 16.2, ry: Math.PI, scale: 1.2, footprint: { type: 'rect', w: 5.1, d: 4.5, z: 15.75 } },
-        { type: 'chuongDuongBridge', x0: DYKE + 1.4, x1: 22, z: E.z },
+        { type: 'chuongDuongBridge', x0: DYKE + 1.4, x1: 22, z: BRIDGE_Z },
       ],
       trees,
       waterways: [
