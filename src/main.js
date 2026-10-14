@@ -280,6 +280,7 @@ function renderHUD(force = false) {
 function renderAbout() {
   const A = t().about;
   $('about-cta').textContent = A.cta;
+  $('about-toggle').setAttribute('aria-label', A.cta);
   $('about-title').textContent = A.title;
   $('about-description').textContent = A.description;
   $('about-source-label').textContent = A.source;
