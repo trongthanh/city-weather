@@ -109,7 +109,22 @@ export function generateCity(def, { lowDetail = false } = {}) {
     if (!occ.isFreeOBB(cx, cz, hw - 0.12, hd - 0.12, yaw)) { stats.occFail = (stats.occFail || 0) + 1; return false; }
     occ.markOBB(cx, cz, hw, hd, yaw, BLOCK);
     pushAll(cx, 0, cz, yaw);
-    const info = BUILDERS[spec.kind](B, spec, rng, pal) || null;
+    const limit = (layout.buildingFloorLimits || []).find(l =>
+      Math.abs(cx - l.x) < l.w / 2 && Math.abs(cz - l.z) < l.d / 2 && spec.floors > l.floors);
+    const starts = limit ? Object.values(B).map(b => b.parts.length) : null;
+    const localRng = limit ? new RNG(rng.s) : null;
+    let info = BUILDERS[spec.kind](B, spec, rng, pal) || null;
+    if (limit) {
+      // Consume the original house's random draws, then rebuild just this lot.
+      // Real floor removal (not squashed windows) must not reshuffle the city.
+      Object.values(B).forEach((b, i) => {
+        for (const g of b.parts.splice(starts[i])) {
+          b.vertexCount -= g.attributes.position.count;
+          g.dispose();
+        }
+      });
+      info = BUILDERS[spec.kind](B, { ...spec, floors: limit.floors }, localRng, pal) || null;
+    }
     if (info && spec.kind !== 'tower') {
       tops.push({ x: cx, y: info.top, z: cz });
       if (info.tin && rng.chance(0.8)) {

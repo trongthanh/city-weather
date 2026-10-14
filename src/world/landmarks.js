@@ -880,6 +880,29 @@ export function oneLegPagoda(B, { x, z, ry = 0, rng, scale = 1.25 }) {
   addTree(B, { x: x + 1.55 * scale, z: z - 0.9 * scale, kind: 'round', s: 0.85 }, rng);
 }
 
+/** Small white Regina Pacis: veiled Mary with joined hands on a stone pedestal. Front +z. */
+export function reginaPacis(B, { x, z, y = 0, ry = 0, scale = 1 }) {
+  const stone = '#c6beb0', white = '#f8f4e9', fold = '#e3ded3';
+  B.main.push(x, y, z, ry, scale);
+  B.main.box(0, 0, 0, 0.52, 0.07, 0.52, stone);
+  B.main.box(0, 0.07, 0, 0.42, 0.07, 0.42, '#ded8cc');
+  B.main.box(0, 0.14, 0, 0.29, 0.36, 0.29, stone);
+  B.main.box(0, 0.5, 0, 0.39, 0.07, 0.39, '#ded8cc');
+  B.main.quad(0, 0.32, 0.147, 0.17, 0.11, '#8c8578');
+  // A flared robe, shallow pleats and a hood read as a statue, not a street agent.
+  B.main.cyl(0, 0.57, 0, 0.16, 0.53, white, 10, 0.085);
+  for (const sx of [-1, 1]) {
+    B.main.beam(V(sx * 0.11, 0.61, 0.10), V(sx * 0.05, 1.01, 0.06), 0.015, fold, 5);
+    B.main.beam(V(sx * 0.10, 1.03, 0), V(sx * 0.15, 0.87, 0.08), 0.043, white, 6);
+    B.main.beam(V(sx * 0.15, 0.87, 0.08), V(sx * 0.022, 1.02, 0.13), 0.035, white, 6);
+    B.main.beam(V(sx * 0.022, 1.02, 0.13), V(sx * 0.016, 1.09, 0.13), 0.022, white, 6);
+  }
+  B.main.sphere(0, 1.13, -0.016, 0.11, fold, 1.32, 10);
+  B.main.sphere(0, 1.14, 0.044, 0.078, white, 1.12, 10);
+  B.main.put(P.sphere(8), white, { y: 0.97, z: -0.057, sx: 0.23, sy: 0.36, sz: 0.13 });
+  B.main.pop();
+}
+
 /** Nhà Thờ Lớn Hà Nội (St Joseph's): dark grey neo-gothic, twin square flat-topped towers. Front +z. */
 export function stJoseph(B, { x, z, ry = 0, scale = 1 }) {
   const wall = '#8c867b', dark = '#6b665d', roof = '#4f4d4a', trim = '#a9a397';
@@ -911,6 +934,8 @@ export function stJoseph(B, { x, z, ry = 0, scale = 1 }) {
   B.glass.put(P.disc(16), '#5d6f9a', { y: 1.6, z: 1.36, sx: 0.28, sy: 0.28 });
   for (const sx of [-0.62, 0, 0.62]) B.main.quad(sx, 0.4, 1.37, 0.26, 0.7, '#3a2e26');
   B.main.box(0, 0, 1.9, 1.9, 0.04, 1.0, '#cfc8ba');
+  // Centred in the existing paved forecourt, facing east with the church.
+  reginaPacis(B, { x: 0, y: 0.04, z: 2.07, scale: 0.85 });
   facadeRows(B, { w: 1.6, d: 2.6, z: -0.55, levels: [0.75], faces: ['back'], spacing: 0.55, ww: 0.22, wh: 0.58, trim, glass: '#596779', arched: true });
   B.lit.pop();
   B.glass.pop();

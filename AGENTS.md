@@ -69,6 +69,7 @@ The working development URL has been `http://localhost:5199/`. Confirm the curre
 - Map-traced Hoàn Kiếm lake with shoreline-following routes, Tháp Rùa, Ngọc Sơn, Thê Húc and Tháp Bút.
 - Lăng Bác + Chùa Một Cột northwest, Văn Miếu southwest, Nhà Thờ Lớn between them; Opera House southeast.
 - Nhà Thờ Lớn stays at `(-15.4, -1.5)`, facing east, with **scale 1.5**, not the former oversized 2.4. Keep its small churchyard and two flanking east-west alleys at z≈−3.7 and +0.7, connecting the west tile edge to the lake ring. Each lane is 0.68 wide, has no broad sidewalks/frontage/avenue trees, allows **only motorbikes** (not cars, buses or cyclos) and has a 0.9 speed limit. Church geometry/footprint must clear both alleys.
+- The narrow lake-ring house opposite the cathedral entrance at approximately `(-9.92, -0.83)` stays **one storey**, controlled by the localized `layout.buildingFloorLimits`. The generator consumes the original building RNG before rebuilding that lot from a separate stream, preserving neighboring houses/trees. Keep the white, veiled Regina Pacis statue with joined hands on its stone pedestal in the existing church forecourt (around `(-12.30, -1.5)`); its nested frame follows the cathedral's rotation/scale and clears both alleys.
 - Stone alley ribbon tops sit 0.015 below main-road asphalt so the lake-ring junctions do not z-fight; agent path heights remain unchanged for smooth turns. Red River boat lanes use offsets −3.0 and −1.8 on the visible western half of the river, not the former +0.6 route outside the eastern tile edge.
 - Red River is on the **east** edge and reddish-brown; the lake is jade-green. Water-bed and skirt colours must follow the nearest water body, not a single global water colour.
 - Old Quarter uses ochre French-colonial shophouses, villas and tiled tube houses, with white trim, shutters, balconies and abundant trees. Avoid reverting to generic midrise blocks.
@@ -125,7 +126,7 @@ node scripts/officecheck.mjs
 
 For HCMC landmark/layout edits, also run `node scripts/hcmccheck.mjs` (City Hall long/low proportions/seven-bay wings, statue/sidewalk clearance and rotated material frames, attached canal glazing/no floating square panel, Landmark 81 silhouette/mast, preserved podium, exact office-tower relocation and no generated geometry in the civic square).
 
-For façade changes run `node scripts/facadecheck.mjs`; for the Hanoi cathedral/alleys or road-access changes run `node scripts/alleycheck.mjs` as well as the full batch above.
+For façade changes run `node scripts/facadecheck.mjs`; for the Hanoi cathedral/alleys or road-access changes run `node scripts/alleycheck.mjs` as well as the full batch above. For the Hanoi cathedral foreground also run `node scripts/cathedralcheck.mjs`.
 For road/promenade or water-route boundary changes, also run `node scripts/boundscheck.mjs` (exact route clipping, actual ribbon vertices and full transformed boat hulls, not just centres).
 
 | Check | What it verifies / limitations |
@@ -139,6 +140,7 @@ For road/promenade or water-route boundary changes, also run `node scripts/bound
 | `node scripts/officecheck.mjs` | Seeded random tower panes, lit/dark mix, no full-floor emissive strips/rings, curved panes split at profile bends, enlarged Bitexco helipad dimensions/attachment, balanced transforms and unchanged landmark parent RNG streams. |
 | `node scripts/facadecheck.mjs` | All seven procedural building styles and seven architectural landmarks have four-elevation glazing; normalized finite geometry, rotated material frames, Nhà Rồng wall bounds/roof icons. It does not prove every detail is unobscured in a rendered view. |
 | `node scripts/alleycheck.mjs` | Reduced Hanoi cathedral, two narrow lanes/ring junctions, church clearance, motorcycle-only spawning/turn access, finite bike positions and alley speed limit. Existing traffic tests still do not prove collision avoidance. |
+| `node scripts/cathedralcheck.mjs` | Exactly one foreground house reduced from four to one storey, actual roof height, unchanged other lots/trees/dynamic roofs, finite Regina Pacis geometry contained on the forecourt and balanced nested transforms. Headless — no rendered visibility proof. |
 | `node scripts/boundscheck.mjs` | Exact edge intersections/interpolated heights, disconnected route fragments, closed inside loops, actual road/sidewalk/promenade geometry and full boat hulls at both route ends/directions/drift/wave levels. |
 | `node scripts/raincheck.mjs` | Rain uniform tuning: mobile/desktop drizzle streaks present, screen-pixel width clamp, heavy rain denser/faster/longer/more opaque, monotonic `uTravel`, splash rings. Headless — no rendered pixels. |
 

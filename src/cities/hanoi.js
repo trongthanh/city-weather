@@ -81,6 +81,8 @@ export default {
       islands: [{ x: LX - 0.52, z: 3.7, r: 0.95 }, { x: LX, z: -7.75, r: 1.55 }],
       parks: [{ type: 'poly', path: parkPoly }],
       plazas: [{ x: -15.0, z: -1.5, w: 7.4, d: 3.8 }], // small churchyard between the alleys
+      // Keep the narrow lake-ring house opposite the entrance low, not the whole street.
+      buildingFloorLimits: [{ x: -9.92, z: -0.83, w: 1.4, d: 1.1, floors: 1 }],
       roads: [
         { name: 'ring', path: ring, trees: 0, lampSpacing: 5.5 },
         { pts: [[N.x, N.z], [N.x, -22]], smooth: false, trees: 2.6 },
