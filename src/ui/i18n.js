@@ -12,6 +12,11 @@ export const STRINGS = {
     loading: 'Đang dựng thành phố…', offline: 'Không tải được dữ liệu thời tiết — đang hiển thị mô phỏng', hint: 'Kéo để xoay · Chụm hoặc cuộn để phóng to',
     traffic: 'Giao thông', trafficLv: { low: 'Thưa', mid: 'Vừa', high: 'Đông (giờ cao điểm)' },
     close: 'Đóng', language: 'Ngôn ngữ', uv: 'UV', aqiLabel: 'AQI', conditions: 'Điều kiện', cities: 'Thành phố',
+    about: {
+      cta: 'Về dự án', title: 'Thời tiết 3D · City Weather',
+      description: 'Một mô hình thành phố 3D tí hon, được tạo bằng thuật toán, tái hiện Hà Nội, Đà Nẵng và TP. Hồ Chí Minh cùng thời tiết và nhịp sống đường phố.',
+      source: 'Nguồn dữ liệu thời tiết & chất lượng không khí:', repo: 'Dự án mã nguồn mở', by: 'Tạo bởi',
+    },
     dateLocale: 'vi-VN',
   },
   en: {
@@ -27,6 +32,11 @@ export const STRINGS = {
     loading: 'Building the city…', offline: 'Weather data unavailable — showing a simulation', hint: 'Drag to rotate · Pinch or scroll to zoom',
     traffic: 'Traffic', trafficLv: { low: 'Light', mid: 'Moderate', high: 'Heavy (rush hour)' },
     close: 'Close', language: 'Language', uv: 'UV', aqiLabel: 'AQI', conditions: 'Conditions', cities: 'Cities',
+    about: {
+      cta: 'About this project', title: 'Thời tiết 3D · City Weather',
+      description: 'A tiny procedural 3D city experience featuring Hanoi, Da Nang and Ho Chi Minh City, with live weather and animated street life.',
+      source: 'Weather & air quality data:', repo: 'Open-source project', by: 'Made by',
+    },
     dateLocale: 'en-GB',
   },
 };

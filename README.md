@@ -65,3 +65,7 @@ Create `src/cities/<id>.js` that exports `{ id, seed, name: {vi, en}, lat, lon, 
 
 - `layout()` returns water shapes, hills, parks, roads (bridges are created automatically wherever a road crosses water), walkways, waterways and landmarks.
 - `style()` picks a building type for each lot.
+
+---
+
+© 2026 [Tran Trong Thanh](https://thanh.im)

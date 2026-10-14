@@ -82,6 +82,23 @@
 
   <div id="hint"></div>
   <div id="toast"></div>
+  <div id="about-widget">
+    <section id="about-card" class="about-card" aria-labelledby="about-title" hidden>
+      <div class="about-head">
+        <h2 id="about-title"></h2>
+        <button id="about-close" class="about-close" type="button" aria-label="Close">✕</button>
+      </div>
+      <p id="about-description"></p>
+      <p class="about-source"><span id="about-source-label"></span> <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo ↗</a></p>
+      <a class="about-repo" href="https://github.com/trongthanh/city-weather" target="_blank" rel="noopener noreferrer">
+        <span id="about-repo-label"></span><b>trongthanh/city-weather ↗</b>
+      </a>
+      <p class="about-credit"><span id="about-by"></span> <a href="https://github.com/trongthanh" target="_blank" rel="noopener noreferrer">@trongthanh</a> · <a href="https://thanh.im" target="_blank" rel="noopener noreferrer">thanh.im</a></p>
+    </section>
+    <button id="about-toggle" class="about-toggle" type="button" aria-expanded="false" aria-controls="about-card">
+      <span class="about-mark" aria-hidden="true">i</span><span id="about-cta"></span>
+    </button>
+  </div>
   <div id="loader"><div class="spinner"></div><p id="loader-text"></p></div>
 
   <script type="module" src="/src/main.js"></script>

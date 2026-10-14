@@ -274,7 +274,27 @@ function renderHUD(force = false) {
   document.querySelectorAll('.lang button').forEach((b) => b.classList.toggle('on', b.dataset.lang === L));
   $('loader-text').textContent = S.loading;
   $('hint').textContent = S.hint;
+  renderAbout();
 }
+
+function renderAbout() {
+  const A = t().about;
+  $('about-cta').textContent = A.cta;
+  $('about-title').textContent = A.title;
+  $('about-description').textContent = A.description;
+  $('about-source-label').textContent = A.source;
+  $('about-repo-label').textContent = A.repo;
+  $('about-by').textContent = A.by;
+  $('about-close').setAttribute('aria-label', t().close);
+}
+
+function openAbout(open) {
+  $('about-card').hidden = !open;
+  $('about-toggle').setAttribute('aria-expanded', String(open));
+}
+
+$('about-toggle').addEventListener('click', () => openAbout($('about-card').hidden));
+$('about-close').addEventListener('click', () => openAbout(false));
 
 function renderSimPanel() {
   const S = t();
@@ -316,7 +336,7 @@ document.querySelectorAll('.lang button').forEach((b) => b.addEventListener('cli
   if ($('sim-panel').classList.contains('open')) renderSimPanel();
   requestAnimationFrame(layout);
 }));
-addEventListener('keydown', (e) => { if (e.key === 'Escape') openSim(false); });
+addEventListener('keydown', (e) => { if (e.key === 'Escape') { openSim(false); openAbout(false); } });
 
 // stars
 {

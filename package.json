@@ -1,8 +1,9 @@
 {
-  "name": "city-weather",
+  "name": "@trongthanh/city-weather",
   "version": "1.0.0",
-  "description": "Procedural 3D city dioramas with realtime weather (three.js)",
   "private": true,
+  "description": "Procedural 3D city dioramas with realtime weather (three.js)",
+  "license": "ISC",
   "type": "module",
   "scripts": {
     "dev": "vite --host",
