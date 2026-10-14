@@ -48,9 +48,9 @@ export default {
         { pts: [[ex(-5), -5], [9.4, -5]], smooth: false, hw: 0.95 },
       ],
       walkways: [
-        { pts: west.offset(-2.1).points.map((p) => [p.x, p.z]), width: 0.5, smooth: false },
-        { pts: east.offset(2.1).points.map((p) => [p.x, p.z]), width: 0.5, smooth: false },
-        { pts: Array.from({ length: 23 }, (_, i) => { const z = -14 + i * 1.6; return [coast(z) - BEACH * 0.3, z]; }), paved: false },
+        { pts: west.offset(-2.1).points.map((p) => [p.x, p.z]), width: 0.5, smooth: false, activity: 'promenade' },
+        { pts: east.offset(2.1).points.map((p) => [p.x, p.z]), width: 0.5, smooth: false, activity: 'promenade' },
+        { pts: Array.from({ length: 23 }, (_, i) => { const z = -14 + i * 1.6; return [coast(z) - BEACH * 0.3, z]; }), paved: false, activity: 'beach' },
       ],
       landmarks: [
         { type: 'dragonBridge', x0: rx(1.5) - 3.8, x1: rx(1.5) + 3.7, z: 1.5 },

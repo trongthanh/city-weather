@@ -20,7 +20,7 @@ export function generateCity(def, { lowDetail = false } = {}) {
   const field = new Field(layout, hashString(def.seed));
   const occ = new Occupancy();
   const B = {
-    main: new MeshBuilder('main'), glass: new MeshBuilder('glass'), lit: new MeshBuilder('lit'),
+    main: new MeshBuilder('main'), service: new MeshBuilder('beach-service'), glass: new MeshBuilder('glass'), lit: new MeshBuilder('lit'),
     lamp: new MeshBuilder('lamp'), neon: new MeshBuilder('neon'), foliage: new MeshBuilder('foliage', { sway: true }),
   };
   const pushAll = (x, y, z, ry) => { for (const b of Object.values(B)) b.push(x, y, z, ry); };
@@ -72,7 +72,7 @@ export function generateCity(def, { lowDetail = false } = {}) {
         }
         for (const p of path.points) occ.markCircle(p.x, p.z, width / 2 + 0.1);
       }
-      return { path, walkway: true };
+      return { path, walkway: true, activity: w.activity || (w.beach ? 'beach' : 'promenade') };
     });
   });
 
@@ -216,13 +216,14 @@ export function generateCity(def, { lowDetail = false } = {}) {
       if (rng.chance(0.25)) continue;
       const x = coast(z) - width * rng.range(0.45, 0.8);
       if (Math.abs(x) > HALF - 0.6 || field.hillHeight(x, z) > 0.1) continue;
-      beachUmbrella(B, { x, z, y: field.height(x, z), rng });
+      beachUmbrella({ ...B, main: B.service }, { x, z, y: field.height(x, z), rng });
     }
   }
 
   // ---- finalize meshes
   const meshes = {
     main: B.main.build(M.main),
+    service: B.service.build(M.main),
     glass: B.glass.build(M.glass),
     lit: B.lit.build(M.lit, { castShadow: false }),
     lamp: B.lamp.build(M.lamp, { castShadow: false }),
@@ -230,6 +231,7 @@ export function generateCity(def, { lowDetail = false } = {}) {
     foliage: B.foliage.build(M.foliage),
   };
   for (const m of Object.values(meshes)) if (m) group.add(m);
+  if (meshes.service) { meshes.service.name = 'beachServiceFurniture'; meshes.service.visible = false; }
   if (meshes.foliage) meshes.foliage.customDepthMaterial = M.foliageDepth;
   if (lamps.length) group.add(buildLightPools(lamps));
   const landmarkLights = buildLandmarkLights(landmarkSpots);
@@ -255,7 +257,8 @@ export function generateCity(def, { lowDetail = false } = {}) {
 
   return {
     def, group, field, roads, water, occ, landmarkLights,
-    walkPaths: [...walkPaths, ...extraWalks],
+    walkPaths: [...walkPaths.map(w => ({ ...w, activity: w.activity || 'street' })), ...extraWalks],
+    serviceFurniture: meshes.service || null,
     roofs, tops,
     beach: layout.beach || null,
     treeSpots: trees.filter((t) => t.kind !== 'bush').map((t) => ({ x: t.x, y: (t.y || 0) + 1.0 * (t.s || 1), z: t.z })),

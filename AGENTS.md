@@ -42,7 +42,7 @@ The working development URL has been `http://localhost:5199/`. Confirm the curre
 | `src/world/landmarkLighting.js` | Local-space fixtures/glowing details, transformed architectural spotlight records, dusk/night intensity updates |
 | `src/core/MeshBuilder.js` | Primitive cache, transform stacks, geometry normalization/merging |
 | `src/core/Path.js`, `rng.js` | Arc-length polyline paths, exact square-bound clipping with separate runs, seeded RNG/noise |
-| `src/agents/AgentSystem.js`, `models.js` | Instanced traffic, people/pets, river boats, beach agents, birds |
+| `src/agents/AgentSystem.js`, `activityPolicy.js`, `models.js` | Instanced traffic, people/pets, river boats, beach agents, birds; shared pure local-time/weather activity policy and route-zone quotas |
 | `src/agents/RoadTurn.js` | Smooth lane-to-lane Bézier connectors and distance-ahead helpers |
 | `src/weather/service.js`, `conditions.js` | Open-Meteo forecast/AQI, cache, condition presets/classification |
 | `src/weather/Atmosphere.js` | Sun/moon, sky/fog, day/night lighting and shared emissives |
@@ -55,6 +55,9 @@ The working development URL has been `http://localhost:5199/`. Confirm the curre
 
 - Fetch weather/AQI **only for the selected city**. Never restore other-city prefetching. Forecast and AQI are separate requests, cached for 10 minutes; refresh the selected city on the interval/visibility return. Simulation still uses selected-city data for the HUD.
 - Traffic is busiest around school/work start/end, sparse overnight. Preserve `trafficLevel()` and `streetLife()` rather than replacing them with constant counts.
+- Shared activity policy lives in `src/agents/activityPolicy.js`: minute-of-day curves wrap continuously, and weather safety (lightning, wind, flood, vortex, rain, fog and snow) is distinct from darkness. Preserve morning and early-evening recreation while keeping 02:00 quiet. Pedestrian zone quotas must actively fill square/promenade/beach/street deficits as well as retire excess, normalized under the existing global pedestrian maximum; do not rely only on spawn-route weights. Maintain the labeled HCMC civic-square allocation rather than routing all leisure to riverside paths.
+- Dogs reuse existing pedestrian slots: never inflate pedestrian targets, clear both owner↔dog references on retirement/reuse/city switches, and bind each dog to the exact active owner generation/path. Active birds and new flocks both obey shared dangerous-weather/night safety and fade out promptly. Boats/cyclos/dogs remain sparse deep at night; river boats remain river-only and rain umbrellas/ponchos remain separate from beach parasols.
+- Beach service geometry remains a separate merged group controlled by the shared safe-daylight policy. Preserve deterministic placement/RNG sequence and hide all service pieces together; storms, unsafe weather and night close it, and calm daylight restores it.
 - Vehicles plan turns in advance, slow down, follow arc-length sampled connectors with matching headings and accelerate afterward. Don't restore instantaneous road switching/position-offset decay as the turning mechanism.
 - Keep clouds above the city; foreground clouds should remain semitransparent. Weather clouds are not architectural spotlight cones.
 - Rain streaks are instanced, camera-facing quads sized in **screen pixels**: clamp with `uMinPixels` (1.15 CSS px on mobile, 0.85 desktop) so light drizzle stays visible at low DPR/close framing, with a soft darker edge for contrast. Drizzle uses a `^0.68` density curve, slower fall (8+) and shorter streaks than heavy rain; fall phases use accumulated `uTravel`, never raw `uTime`, so speed ramps must not re-phase every drop. Very-near-camera drops fade out; splash rings scale with rain amount. Keep the maximum storm instance budget unchanged.
@@ -128,6 +131,8 @@ node scripts/operacheck.mjs &&
 node scripts/officecheck.mjs
 ```
 
+For shared activity/time/weather policy or pedestrian-zone changes, also run `node scripts/activitycheck.mjs` (actual per-zone live counts at noon/20:00/02:00 in all cities, condition-preset and isolated-hazard retirement/recovery, furniture/city-switch state, owner-generation/path links, unchanged budgets and finite matrices).
+
 For Đà Nẵng Dragon Bridge changes, also run `node scripts/dragoncheck.mjs` (unchanged wave profile, thicker tubes/ribs, closed opaque infill/outward normals, 35 dorsal fins, east-facing head, aligned piers, straight-lane clearance, finite merged geometry and vertex budget; headless, not visual or intersection collision proof).
 
 For HCMC landmark/layout edits, also run `node scripts/hcmccheck.mjs` (City Hall long/low proportions/seven-bay wings, statue/sidewalk clearance and rotated material frames, attached canal glazing/no floating square panel, Landmark 81 silhouette/mast, preserved podium, exact office-tower relocation and no generated geometry in the civic square).
@@ -143,6 +148,7 @@ For Hanoi lake-ring path/sidewalk changes also run `node scripts/ringcheck.mjs` 
 | `npm run smoke` | All cities generate; agents run at overnight/rush/off-peak times; cyclone roofs/debris recover in calm. Inspect output for errors and **`NaN matrices`**, which is logged rather than asserted. Counts vary because moving agents use `Math.random`. |
 | `node scripts/turncheck.mjs` | 48 vehicle/direction/frame-rate combinations (30/60/120 FPS), entry/exit position and heading continuity, asphalt bounds, closed-road distance seams, forced endpoint planning and bus road-width restrictions. |
 | `node scripts/beachcheck.mjs` | Fair-weather beach activity, finite transforms/strings, water/tile bounds, river-only boats, two-sided kite normals, night/storm retirement and city switching. |
+| `node scripts/activitycheck.mjs` | Continuous wrapped time curves; actual per-zone live pedestrian counts at noon, 20:00 (`night=1`) and 02:00 (`night=1`) in all cities; HCMC square allocation; condition presets and isolated lightning/flood/vortex/wind/night retirement; furniture/city-switch recovery; dog owner-generation/path links; unchanged budgets and finite matrices. Headless; not visual proof. |
 | `node scripts/lightcheck.mjs` | Monument/statue/cathedral/Opera House spotlights; bounded counts, rotated/scaled coordinates, no additional shadows, noon-off/night-on/dusk transitions. |
 | `node scripts/operacheck.mjs` | Opera House six tall columns, four corner mansards/raised slate auditorium roof, full geometry within its reserved footprint, glowing glazing on four façades and attached dormers, porch lamps, rotated/scaled bounds and balanced material transform stacks. |
 | `node scripts/officecheck.mjs` | Seeded random tower panes, lit/dark mix, no full-floor emissive strips/rings, curved panes split at profile bends, enlarged Bitexco helipad dimensions/attachment, balanced transforms and unchanged landmark parent RNG streams. |

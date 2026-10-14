@@ -4,6 +4,7 @@ import { radialTex } from '../world/materials.js';
 import { waveHeight, waveUniforms } from '../world/terrain.js';
 import { HALF } from '../world/Field.js';
 import { createRoadTurn, distanceAhead } from './RoadTurn.js';
+import { activityPolicy } from './activityPolicy.js';
 
 // Moving life: motorbikes, cars, buses, cyclos, pedestrians (with umbrellas & nón lá),
 // dogs, cats, boats, basket boats and birds. All instanced — one draw call per part.
@@ -106,17 +107,23 @@ export class AgentSystem {
   }
 
   setCity(city) {
+    for (const T of Object.values(this.types)) for (const a of T.agents) this._deactivate(a);
     this.city = city;
     this.roads = city.roads;
     this.walks = city.walkPaths.filter((w) => w.path.length > 2);
+    this.zoneCounts = Object.create(null);
     this.waters = city.waterPaths.filter((w) => w.kind === 'boat');
     this.baskets = city.waterPaths.filter((w) => w.kind === 'basket');
     this.beach = city.beach || null; // { coast(z), width }
-    for (const T of Object.values(this.types)) for (const a of T.agents) a.active = false;
     this._prefill = true;
   }
 
   // ------------------------------------------------------------ spawning
+  _deactivate(a) {
+    if (a.owner && a.owner.dog === a) { a.owner.dog = null; a.owner.ownerDog = false; }
+    if (a.dog) { const dog = a.dog; a.dog = null; a.ownerDog = false; dog.leaving = true; dog.owner = null; }
+    a.active = false;
+  }
   _free(T) { return T.agents.find((a) => !a.active); }
   _count(T) { let n = 0; for (const a of T.agents) if (a.active && !a.leaving) n++; return n; }
 
@@ -167,16 +174,46 @@ export class AgentSystem {
     if (!this.walks.length) return null;
     const a = this._free(T);
     if (!a) return null;
-    const w = onPath || pick(this.walks);
+    const w = onPath || (T.name === 'ped' ? this._chooseWalk() : this._chooseAnimalWalk());
+    if (!w) return null;
     const spec = T.spec;
+    if (a.owner && a.owner.dog === a) { a.owner.dog = null; a.owner.ownerDog = false; }
     Object.assign(a, {
       active: true, leaving: false, road: null, path: w.path, s: rr(0, w.path.length), dir: R() < 0.5 ? 1 : -1,
       lat: rr(spec.lat[0], spec.lat[1]), vmax: rr(spec.speed[0], spec.speed[1]), fade: 0, yaw: null, off: new THREE.Vector3(),
-      ttl: rr(6, 28), phase: R() * 10, hat: R() < 0.22, umbT: rr(0.04, 0.7), stop: 0, owner: null,
+      ttl: rr(6, 28), phase: R() * 10, hat: R() < 0.22, umbT: rr(0.04, 0.7), stop: 0, owner: null, dog: null, ownerDog: false,
+      generation: (a.generation || 0) + 1,
     });
+    a.activity = w.activity || 'street';
     a.v = a.vmax;
     this._tint(T, a);
     return a;
+  }
+
+  _eligibleWalks() { return this.walks.filter(w => w.activity !== 'beach' || this.policy?.beachSafe); }
+
+  _chooseAnimalWalk() {
+    const eligible = this._eligibleWalks();
+    return eligible.length ? pick(eligible) : null;
+  }
+
+  _chooseWalk() {
+    const eligible = this._eligibleWalks();
+    if (!eligible.length) return this.walks[0];
+    const deficits = this.zoneTargets || {};
+    const counts = { street: 0, square: 0, promenade: 0, beach: 0 };
+    for (const a of this.types.ped.agents) if (a.active && !a.leaving) counts[a.activity || 'street']++;
+    this.zoneCounts = { ...this.zoneCounts, ...counts };
+    const needed = ['square', 'promenade', 'beach', 'street'].filter(zone => (deficits[zone] || 0) > (counts[zone] || 0));
+    const zone = needed[0];
+    if (!zone) return null;
+    const candidates = eligible.filter(w => w.activity === zone);
+    if (!candidates.length) return null;
+    const eligibleByZone = candidates;
+    const weights = eligibleByZone.map(w => 1);
+    let r = R() * weights.reduce((a, b) => a + b, 0);
+    for (let i = 0; i < eligibleByZone.length; i++) { r -= weights[i]; if (r <= 0) return eligibleByZone[i]; }
+    return eligibleByZone[eligibleByZone.length - 1];
   }
 
   _spawnWater(T, list, prefill) {
@@ -272,24 +309,27 @@ export class AgentSystem {
     const night = env.night;
     const life = env.life;
     const rain = env.rain;
+    const policy = this.policy = activityPolicy({ ...env, minutes: env.minutes ?? 720 });
     const tf = trafficLevel(env.minutes ?? 720);
     const sl = streetLife(env.minutes ?? 720);
     this.traffic = tf;
     const targets = {
-      motorbike: life * tf * (1 - rain * 0.25),
-      car: life * (0.12 + 0.88 * tf),
-      bus: life * Math.min(1, 0.3 + tf) * (1 - night * 0.6),
-      cyclo: life * (1 - night) * (1 - rain) * (0.6 + 0.4 * (1 - tf)),
-      ped: life * sl * (1 - rain * 0.35),
-      dog: life * sl * (1 - rain * 0.7),
-      cat: Math.max(0.3, life) * (1 - rain * 0.8),
-      boat: life * (1 - env.waves * 0.8),
-      basket: life * (1 - env.waves),
-      jetski: this.beach ? life * (1 - night) * (1 - rain) * (1 - env.waves * 1.3) : 0,
-      surfer: this.beach ? life * (1 - night) * (1 - rain * 0.6) * (1 - env.waves * 1.1) : 0,
-      kite: this.beach ? (1 - night) * (1 - rain) * Math.max(0, 1 - Math.abs(env.wind - 0.25) * 2.2) : 0,
+      motorbike: life * tf * policy.travel * (1 - rain * 0.25),
+      car: life * (0.12 + 0.88 * tf) * policy.travel,
+      bus: life * Math.min(1, 0.3 + tf) * (1 - night * 0.6) * policy.travel,
+      cyclo: life * (0.72 * policy.day + 0.18 * policy.evening + 0.16 * policy.morning) * (1 - 0.94 * policy.deepNight) * policy.weatherLeisure * (policy.dangerous ? 0 : 1),
+      ped: life * Math.max(sl, policy.street) * (1 - rain * 0.25) * (policy.dangerous ? 0.12 : 1),
+      dog: life * policy.animals * (0.06 + 0.94 * Math.max(policy.morning, policy.evening)) * (1 - 0.92 * policy.deepNight) * (policy.dangerous ? 0 : 1),
+      cat: life * policy.animals * (0.28 + 0.32 * policy.day + 0.22 * policy.evening) * (policy.dangerous ? 0 : 1),
+      boat: life * policy.boats,
+      basket: life * policy.boats * (1 - env.waves) * (policy.dangerous ? 0 : 1),
+      jetski: this.beach ? life * policy.beachActivity * (1 - env.waves) : 0,
+      surfer: this.beach ? life * policy.beachActivity * (1 - rain * 0.5) : 0,
+      kite: this.beach ? life * policy.beachActivity * (1 - rain) * Math.max(0, 1 - Math.abs(env.wind - 0.25) * 2.2) : 0,
       bird: 0,
     };
+    if (this.city?.serviceFurniture) this.city.serviceFurniture.visible = policy.service > 0.5;
+    this._rebalanceWalkZones(Math.round(this.types.ped.max * Math.max(0, Math.min(1, targets.ped))), policy);
     const prefill = this._prefill;
     this._prefill = false;
 
@@ -310,10 +350,16 @@ export class AgentSystem {
           if (T.spec.kind === 'road') a = this._spawnRoad(T, prefill);
           else if (T.spec.kind === 'walk') {
             if (T.name === 'dog') {
-              // dogs come with an owner
-              const owner = this._spawnWalk(this.types.ped, false);
-              if (owner) { a = this._spawnWalk(T, false, { path: owner.path }); if (a) { a.owner = owner; a.dir = owner.dir; a.s = owner.s - owner.dir * 0.4; a.vmax = owner.vmax; a.lat = owner.lat + 0.16; a.ttl = owner.ttl; } }
-            } else a = this._spawnWalk(T, prefill);
+              // Reuse a targeted pedestrian; an owner never inflates the pedestrian budget.
+              const ped = this.types.ped, pedTarget = Math.round(ped.max * Math.max(0, Math.min(1, targets.ped)));
+              const owners = ped.agents.filter(p => p.active && !p.leaving && p.ownerDog).length;
+              const owner = ped.agents.find(p => p.active && !p.leaving && !p.ownerDog && !p.dog);
+              if (owner && owners < pedTarget) { a = this._spawnWalk(T, false, { path: owner.path, activity: owner.activity }); if (a) { a.owner = owner; a.ownerGeneration = owner.generation; owner.dog = a; owner.ownerDog = true; a.dir = owner.dir; a.s = owner.s - owner.dir * 0.4; a.vmax = owner.vmax; a.lat = owner.lat + 0.16; a.ttl = owner.ttl; } }
+            } else if (T.name === 'ped') {
+              const walk = this._chooseWalk();
+              if (!walk) continue;
+              a = this._spawnWalk(T, prefill, walk);
+            } else a = this._spawnWalk(T, prefill, this._chooseAnimalWalk());
           } else if (T.spec.kind === 'water') a = this._spawnWater(T, this.waters, prefill);
           else if (T.spec.kind === 'basket') a = this._spawnWater(T, this.baskets, true);
           else if (T.spec.kind === 'sea') a = this._spawnSea(T);
@@ -326,7 +372,8 @@ export class AgentSystem {
       }
     }
     // birds
-    const birdOK = (1 - night) * (1 - rain) * (1 - env.wind) > 0.35;
+    const birdOK = !policy.dangerous && !policy.storm && policy.night < 0.45 && policy.rain < 0.55 && policy.fog < 0.65 && policy.snow < 0.4;
+    for (const a of this.types.bird.agents) if (a.active && !birdOK) a.leaving = true;
     this.birdTimer -= dt;
     if (birdOK && this.birdTimer <= 0) { this._spawnBirds(this.types.bird); this.birdTimer = rr(8, 18); }
 
@@ -376,11 +423,31 @@ export class AgentSystem {
     sp.needsUpdate = true;
   }
 
+  _rebalanceWalkZones(target, policy) {
+    const available = new Set(this.walks.map(w => w.activity || 'street'));
+    const hasLeisure = available.has('promenade') || available.has('square');
+    let leisure = hasLeisure ? Math.round(target * Math.min(0.76, 0.12 + 0.52 * policy.evening + 0.22 * policy.morning) * policy.weatherLeisure) : 0;
+    const beach = available.has('beach') && policy.beachSafe ? Math.min(Math.round(target * 0.24 * policy.beachActivity), Math.round(target * 0.35)) : 0;
+    leisure = Math.min(leisure, target - beach);
+    const square = available.has('square') ? (available.has('promenade') ? Math.round(leisure * 0.52) : leisure) : 0;
+    const promenade = available.has('promenade') ? leisure - square : 0;
+    const street = available.has('street') ? Math.max(0, target - leisure - beach) : 0;
+    this.zoneTargets = { street, square, promenade, beach };
+    for (const a of this.types.ped.agents) if (a.active && !a.leaving && ((a.activity === 'beach' && !policy.beachSafe) || (this.zoneTargets[a.activity] || 0) === 0)) a.leaving = true;
+    const counts = { street: 0, square: 0, promenade: 0, beach: 0 };
+    for (const a of this.types.ped.agents) if (a.active && !a.leaving) counts[a.activity || 'street']++;
+    for (const zone of ['square', 'promenade', 'beach', 'street']) {
+      let excess = counts[zone] - this.zoneTargets[zone];
+      if (excess > 0) for (const a of this.types.ped.agents) if (excess > 0 && a.active && !a.leaving && a.activity === zone) { a.leaving = true; excess--; }
+    }
+    this.zoneCounts = { ...counts, targetLeisure: leisure };
+  }
+
   _fadeStep(a, dt, edgeFade = 1) {
     const target = a.leaving ? 0 : 1;
     a.fade += Math.sign(target - a.fade) * Math.min(Math.abs(target - a.fade), dt * 1.8);
     a.vis = Math.min(a.fade, edgeFade);
-    if (a.leaving && a.fade <= 0.001) a.active = false;
+    if (a.leaving && a.fade <= 0.001) this._deactivate(a);
   }
 
   _updRoad(T, a, dt, env) {
@@ -440,7 +507,7 @@ export class AgentSystem {
     if (P.closed) a.s = ((a.s % PL) + PL) % PL;
     else if (a.s > PL || a.s < 0) {
       const atEdge = a.s > PL ? a.road.endEdge : a.road.startEdge;
-      if (atEdge) { a.active = false; return; }
+      if (atEdge) { this._deactivate(a); return;}
       a.leaving = true; a.s = Math.max(0, Math.min(PL, a.s));
     }
     let edgeFade = 1;
@@ -497,6 +564,7 @@ export class AgentSystem {
 
   _updWalk(T, a, dt, env) {
     const P = a.path, L = P.length;
+    if (T.name === 'dog' && (!a.owner || !a.owner.active || a.owner.leaving || a.owner.generation !== a.ownerGeneration || a.owner.path !== P)) a.leaving = true;
     let speed = a.vmax * (1 + env.rain * 0.5);
     if (T.name === 'cat') {
       a.stop -= dt;
@@ -522,7 +590,7 @@ export class AgentSystem {
       if (a.s < 0 || a.s > L) {
         a.s = Math.max(0, Math.min(L, a.s));
         const end = P.pointAt(a.s);
-        if (Math.abs(end.x) > HALF - 0.8 || Math.abs(end.z) > HALF - 0.8) { a.active = false; return; }
+        if (Math.abs(end.x) > HALF - 0.8 || Math.abs(end.z) > HALF - 0.8) { this._deactivate(a); return; }
         a.leaving = true;
       }
       const e0 = P.points[0], e1 = P.points[P.points.length - 1];
@@ -537,7 +605,7 @@ export class AgentSystem {
     a.v = a.vmax * (1 - env.waves * 0.5);
     a.s += a.dir * a.v * dt;
     if (P.closed) a.s = ((a.s % L) + L) % L;
-    else if (a.s < 0 || a.s > L) { a.active = false; return; }
+    else if (a.s < 0 || a.s > L) { this._deactivate(a); return; }
     let edgeFade = 1;
     if (!P.closed) edgeFade = Math.min(a.s / 1.2, (L - a.s) / 1.2);
     this._fadeStep(a, dt, Math.max(0, Math.min(1, edgeFade)));
@@ -568,9 +636,10 @@ export class AgentSystem {
     a.pos.addScaledVector(a.vel, dt);
     a.phase += dt * 14;
     a.life -= dt;
-    if (a.life < 0) a.active = false;
+    if (a.life < 0) a.leaving = true;
+    this._fadeStep(a, dt);
     const edge = Math.max(Math.abs(a.pos.x), Math.abs(a.pos.z));
-    a.vis = Math.max(0, Math.min(1, (34 - edge) / 4));
+    a.vis = Math.min(a.vis ?? 1, Math.max(0, Math.min(1, (34 - edge) / 4)));
   }
 
   _write(T, a, i, env) {
@@ -651,7 +720,7 @@ export class AgentSystem {
       switch (part.name) {
         case 'poncho': show = show && env.rain > a.ponchoT; break;
         case 'umbrella': show = show && env.rain > a.umbT && env.wind < 0.75; break;
-        case 'hat': show = show && a.hat && !(raining && env.rain > a.umbT); break;
+        case 'hat': show = show && a.hat && env.night < 0.5 && !(raining && env.rain > a.umbT); break;
         case 'beamS': case 'beamL': show = show && env.night > 0.05; break;
         default: break;
       }

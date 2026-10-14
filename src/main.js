@@ -414,7 +414,7 @@ function frame() {
   gale.update(dt, cur, fxOut.windDir);
   agents.setDt(dt);
   agents.setWind(fxOut.windDir);
-  agents.update(dt, { night: atm.night, life: cur.life, rain: cur.rain, wind: cur.wind, waves: cur.waves, minutes: state.minutes });
+  agents.update(dt, { night: atm.night, life: cur.life, rain: cur.rain, wind: cur.wind, waves: cur.waves, flood: cur.flood, lightning: cur.lightning, vortex: cur.vortex, snow: cur.snow, fog: cur.fog, minutes: state.minutes, sunrise: d?.sunrise ?? 345, sunset: d?.sunset ?? 1065 });
 
   // CSS sky (throttled)
   cssTimer -= dt;

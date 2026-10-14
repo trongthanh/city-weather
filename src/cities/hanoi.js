@@ -133,7 +133,7 @@ export default {
         { pts: [[-22, 19.6], [DYKE, 19.6]], smooth: false, hw: 1.0, trees: 2.8 },
         ...cathedralAlleys,
       ],
-      walkways: [{ path: prom, width: 0.6 }],
+      walkways: [{ path: prom, width: 0.6, activity: 'promenade' }],
       landmarks: [
         { type: 'turtleTower', x: LX - 0.52, z: 3.7, ry: 0.25, footprint: { type: 'circle', r: 0.95 } },
         { type: 'ngocSonTemple', x: LX, z: -7.75, ry: 0, footprint: { type: 'circle', r: 1.6 } },

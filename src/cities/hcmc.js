@@ -57,9 +57,9 @@ export default {
         { name: 'Thủ Thiêm 2', pts: [[10.6, -6.5], [22, -6.5]], smooth: false, hw: 1.15, frontage: false },
       ],
       walkways: [
-        { pts: [[1.6, -7.4], [1.6, 11.8]], smooth: false, paved: false },
-        { pts: [[4.4, -7.4], [4.4, 11.8]], smooth: false, paved: false },
-        { pts: [[13.4, -21], [13.6, -12], [13.1, -2], [13.4, 8], [14.0, 13.2]], width: 0.5, color: '#d8cfbf' },
+        { pts: [[1.6, -7.4], [1.6, 11.8]], smooth: false, paved: false, activity: 'square' },
+        { pts: [[4.4, -7.4], [4.4, 11.8]], smooth: false, paved: false, activity: 'square' },
+        { pts: [[13.4, -21], [13.6, -12], [13.1, -2], [13.4, 8], [14.0, 13.2]], width: 0.5, color: '#d8cfbf', activity: 'promenade' },
       ],
       landmarks: [
         { type: 'canalRow', x0: -21.4, x1: -8.6, z: 20.3 },
