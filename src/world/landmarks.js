@@ -127,49 +127,156 @@ export function lakePavilion(B, { x, z, ry = 0 }) {
 
 // ===================================================================== ĐÀ NẴNG
 
-export function dragonBridge(B, { x0, x1, z, deckY }) {
-  const gold = '#f0b323', red = '#d9452f';
-  const pts = [];
-  const humps = 5;
-  for (let i = 0; i <= 120; i++) {
-    const t = i / 120;
-    const x = x0 + (x1 - x0) * t;
-    let y = deckY + 0.25 + 1.5 * Math.pow(Math.abs(Math.sin(Math.PI * humps * t * 0.92)), 0.75);
-    if (t > 0.92) y = deckY + 0.25 + (t - 0.92) / 0.08 * 2.0;
-    pts.push(V(x, y, z));
+export function dragonBridge(B, { x0, x1, z, deckY, roads }) {
+  const gold = '#e9b52b', highlight = '#ffcf48', bronze = '#b7831e';
+  const road = roads?.find(r => r.name === 'Cầu Rồng');
+  const span = x1 - x0;
+  const smooth = t => t * t * (3 - 2 * t);
+  // Three broad steel arches: the central span dominates, as in the reference.
+  // A raised, tapering tail and short upturned neck replace the old tight coils.
+  const troughs = [0.10, 0.33, 0.67, 0.92], rises = [0.82, 1.55, 0.98];
+  const center = t => {
+    let rise;
+    if (t < troughs[0]) rise = 0.48 * (1 - smooth(t / troughs[0]));
+    else if (t > troughs[3]) rise = 0.84 * smooth((t - troughs[3]) / (1 - troughs[3]));
+    else {
+      const k = t < troughs[1] ? 0 : t < troughs[2] ? 1 : 2;
+      rise = rises[k] * Math.sin(Math.PI * (t - troughs[k]) / (troughs[k + 1] - troughs[k])) ** 2;
+    }
+    return V(x0 + span * t, deckY + 0.28 + rise, z);
+  };
+  const frame = t => {
+    const p = center(t);
+    const tangent = center(Math.min(1, t + 0.001)).sub(center(Math.max(0, t - 0.001))).normalize();
+    const normal = V(-tangent.y, tangent.x, 0);
+    const taper = 0.30 + 0.70 * smooth(Math.min(1, t / 0.13));
+    return { p, tangent, normal, taper };
+  };
+  const railPoint = (t, angle) => {
+    const { p, normal, taper } = frame(t);
+    return p.addScaledVector(normal, Math.cos(angle) * 0.20 * taper)
+      .add(V(0, 0, Math.sin(angle) * 0.18 * taper));
+  };
+  // Fill the existing elliptical frame without changing its wave or taper.
+  // Slightly darker gold keeps the heavier outer tubes/ribs readable on top.
+  // Sample the tight neck more finely so the infill triangles follow its
+  // curvature-limited sweep instead of cutting across the bend.
+  const samples = Array.from({ length: 89 }, (_, i) => i / 100);
+  for (let i = 1; i <= 60; i++) samples.push(0.88 + 0.12 * i / 60);
+  const sections = samples.length - 1, sides = 10, positions = [], indices = [];
+  const skinPoint = (t, angle) => {
+    const { p, normal, taper } = frame(t);
+    // The short neck has a much tighter bend than the broad arches. Limit
+    // only the inside skin's vertical radius there so its sweep cannot fold
+    // through itself; the approved centerline and outer steel remain intact.
+    const a = frame(Math.max(0, t - 0.002)), b = frame(Math.min(1, t + 0.002));
+    const curvature = a.tangent.distanceTo(b.tangent) / Math.max(0.0001, a.p.distanceTo(b.p));
+    const verticalRadius = Math.min(0.18 * taper, 0.65 / Math.max(0.001, curvature));
+    return p.addScaledVector(normal, Math.cos(angle) * verticalRadius)
+      .add(V(0, 0, Math.sin(angle) * 0.16 * taper));
+  };
+  for (let i = 0; i <= sections; i++) {
+    for (let j = 0; j < sides; j++) positions.push(...skinPoint(samples[i], j * Math.PI * 2 / sides).toArray());
+    if (i === sections) continue;
+    for (let j = 0; j < sides; j++) {
+      const a = i * sides + j, b = i * sides + (j + 1) % sides;
+      indices.push(a, b, b + sides, a, b + sides, a + sides);
+    }
   }
-  // tail curl
-  const tail = [];
-  for (let i = 0; i < 10; i++) {
-    const a = i * 0.6;
-    tail.push(V(x0 - 0.1 - Math.sin(a) * (0.5 - i * 0.04), deckY + 0.6 + Math.cos(a) * (0.5 - i * 0.04), z));
+  // Separate cap vertices give the closed tail/neck ends flat outward normals.
+  for (const t of [0, 1]) {
+    const c = positions.length / 3;
+    positions.push(...center(t).toArray());
+    for (let j = 0; j < sides; j++) positions.push(...skinPoint(t, j * Math.PI * 2 / sides).toArray());
+    for (let j = 0; j < sides; j++) {
+      const a = c + 1 + j, b = c + 1 + (j + 1) % sides;
+      indices.push(c, t === 0 ? b : a, t === 0 ? a : b);
+    }
   }
-  const curve = new THREE.CatmullRomCurve3([...tail.reverse(), ...pts]);
-  const tube = new THREE.TubeGeometry(curve, 260, 0.2, 8, false);
-  B.neon.put(normalizeGeometry(tube), gold, {}, true);
-  // spines
-  for (let i = 2; i < 115; i += 3) {
-    const p = pts[i];
-    B.neon.cone(p.x, p.y + 0.12, p.z, 0.06, 0.22, red, 5);
+  const skin = new THREE.BufferGeometry();
+  skin.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  skin.setIndex(indices);
+  skin.computeVertexNormals();
+  B.main.put(normalizeGeometry(skin), '#d6a126', {}, true);
+  // Six thicker longitudinal chords and transverse ribs retain the steelwork
+  // relief over the filled body, rather than replacing it with a plain hose.
+  for (let k = 0; k < 6; k++) {
+    const angle = k * Math.PI / 3;
+    const points = Array.from({ length: 91 }, (_, i) => railPoint(i / 90, angle));
+    const curve = new THREE.CatmullRomCurve3(points);
+    B.main.put(normalizeGeometry(new THREE.TubeGeometry(curve, 100, 0.045, 4, false)), k % 2 ? gold : highlight, {}, true);
+    // Small integrated LED strips keep the cage legible at night without
+    // turning the whole head/body into an unshaded emissive blob.
+    if (k === 1 || k === 5) {
+      const leds = points.map(p => p.clone().add(V(0, 0.014, 0)));
+      B.neon.put(normalizeGeometry(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(leds), 100, 0.011, 4, false)), highlight, {}, true);
+    }
   }
-  // supports at troughs
-  for (let k = 0; k < humps; k++) {
-    const t = k / (humps * 0.92);
-    const x = x0 + (x1 - x0) * t;
-    B.main.box(x, deckY - 0.02, z, 0.3, 0.3, 0.5, '#c2bcae');
+  const rib = normalizeGeometry(new THREE.TorusGeometry(1, 0.16, 4, 10));
+  for (let i = 0; i <= 38; i++) {
+    const { p, tangent, normal, taper } = frame(i / 38);
+    const m = new THREE.Matrix4().makeBasis(normal, V(0, 0, 1), tangent).setPosition(p);
+    B.main.pushMatrix(m);
+    B.main.put(rib, gold, { sx: 0.20 * taper, sy: 0.18 * taper, sz: 0.20 });
+    B.main.pop();
   }
-  // head
-  const h = pts[pts.length - 1];
-  B.neon.push(h.x, h.y, h.z, Math.PI / 2);
-  B.neon.box(0, -0.18, 0.1, 0.45, 0.38, 0.55, gold);
-  B.neon.box(0, -0.2, 0.5, 0.32, 0.18, 0.45, gold);
-  B.neon.box(0, -0.38, 0.45, 0.28, 0.08, 0.45, red);
+  rib.dispose();
+  // Thin swept plates (closed prisms, correctly oriented on both sides).
+  const plate = (a, b, c, thickness) => {
+    const points = [a, b, c].flatMap(p => [p.clone().add(thickness), p.clone().sub(thickness)]);
+    const faces = [[0, 2, 4], [1, 5, 3], [0, 1, 3], [0, 3, 2], [2, 3, 5], [2, 5, 4], [4, 5, 1], [4, 1, 0]];
+    const centroid = a.clone().add(b).add(c).divideScalar(3);
+    B.main.put(geometryFromTris(faces.map(f => f.map(i => points[i].toArray())), centroid), highlight, {}, true);
+  };
+  // A denser dorsal crest: 35 gold fins, following the unchanged wave from
+  // the tapered tail to the neck, with their roots seated in the upper chord.
+  for (let i = 2; i < 37; i++) {
+    const t = i / 38, { p, normal, tangent, taper } = frame(t);
+    const base = p.addScaledVector(normal, 0.20 * taper + 0.02);
+    plate(base.clone().addScaledVector(tangent, 0.09), base.clone().addScaledVector(tangent, -0.11),
+      base.clone().addScaledVector(normal, 0.23 * taper).addScaledVector(tangent, -0.19), V(0, 0, 0.022));
+  }
+  // Median saddles and slim concrete piers line up with the arch feet. The
+  // road remains the sole owner of asphalt/sidewalks, rails and street lamps.
+  for (const t of troughs) {
+    const x = x0 + span * t;
+    B.main.box(x, deckY + 0.015, z, 0.22, 0.075, 0.40, bronze);
+    for (const side of [-1, 1]) {
+      const anchor = center(t).add(V(0, -0.16, side * 0.12));
+      B.main.beam(V(x, deckY + 0.08, z + side * 0.12), anchor, 0.022, gold, 4);
+    }
+    const hw = road?.hw ?? 1.25, sw = road?.sw ?? 0.55;
+    B.main.cyl(x, BED, z, 0.26, deckY - 0.31 - BED, '#c6c4bb', 10, 0.35);
+    B.main.box(x, deckY - 0.32, z, 0.55, 0.07, (hw + sw) * 1.85, '#ddd8cb');
+  }
+  // Local +z faces the east bank. Gold swept cheek/mane plates, paired horns,
+  // projecting muzzle, recessed mouth, fangs and trailing whiskers read as a
+  // dragon from either bank; no red cartoon spikes or rectangular red jaw.
+  const h = center(1);
+  for (const b of [B.main, B.neon]) b.push(h.x, h.y, h.z, Math.PI / 2);
+  B.main.put(P.ico(1), gold, { y: 0.03, z: 0.06, sx: 0.56, sy: 0.43, sz: 0.62 });
+  B.main.put(P.ico(1), highlight, { y: 0.055, z: 0.40, sx: 0.40, sy: 0.23, sz: 0.47 });
+  B.main.box(0, -0.13, 0.40, 0.31, 0.085, 0.39, '#5a4525');
+  B.main.put(P.ico(1), gold, { y: -0.19, z: 0.37, sx: 0.36, sy: 0.12, sz: 0.49 });
   for (const s of [-1, 1]) {
-    B.neon.beam(V(s * 0.12, 0.18, 0), V(s * 0.3, 0.6, -0.35), 0.035, gold, 4);
-    B.neon.sphere(s * 0.14, 0.02, 0.38, 0.05, '#222');
+    for (let k = 0; k < 5; k++) {
+      const y = 0.20 - k * 0.08, back = -0.04 - k * 0.035;
+      plate(V(s * 0.22, y, back + 0.18), V(s * 0.24, y - 0.13, back - 0.02),
+        V(s * (0.31 + k * 0.01), y - 0.12, back - 0.48), V(0.018, 0, 0));
+    }
+    B.main.beam(V(s * 0.16, 0.17, -0.07), V(s * 0.23, 0.42, -0.29), 0.044, gold, 5);
+    B.main.beam(V(s * 0.23, 0.42, -0.29), V(s * 0.20, 0.48, -0.46), 0.027, highlight, 5);
+    B.main.put(P.ico(0), bronze, { x: s * 0.244, y: 0.075, z: 0.18, sx: 0.045, sy: 0.13, sz: 0.17 });
+    B.main.sphere(s * 0.264, 0.07, 0.20, 0.041, '#292c23', 0.75, 8);
+    B.neon.sphere(s * 0.289, 0.072, 0.21, 0.016, '#ffd36b', 1, 6);
+    B.main.beam(V(s * 0.20, 0.15, 0.08), V(s * 0.20, 0.16, 0.31), 0.026, highlight, 4);
+    for (const f of [0.31, 0.49]) B.main.put(P.cone(4), '#fff0b2', { x: s * 0.12, y: -0.105, z: f, sx: 0.055, sy: 0.10, sz: 0.055, rx: Math.PI });
+    B.main.beam(V(s * 0.16, -0.03, 0.52), V(s * 0.25, -0.22, 0.31), 0.018, highlight, 4);
+    B.main.beam(V(s * 0.25, -0.22, 0.31), V(s * 0.23, -0.31, -0.05), 0.013, gold, 4);
+    B.main.sphere(s * 0.10, 0.11, 0.57, 0.024, bronze, 0.6, 6);
   }
-  for (let i = 0; i < 6; i++) B.neon.cone(0, -0.1 - i * 0.05, -0.25 - i * 0.06, 0.08, 0.3, red, 4);
-  B.neon.pop();
+  plate(V(0, -0.19, 0.22), V(0, -0.20, 0.43), V(0, -0.43, 0.02), V(0.022, 0, 0));
+  B.neon.pop(); B.main.pop();
 }
 
 export function hanRiverBridge(B, { x, z, deckY }) {

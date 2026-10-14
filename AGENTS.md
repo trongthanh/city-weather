@@ -96,6 +96,7 @@ The working development URL has been `http://localhost:5199/`. Confirm the curre
 ### Đà Nẵng
 
 - Keep Sơn Trà/Linh Ứng and the large Lady Buddha, plus Dragon Bridge, Han River Bridge and Trần Thị Lý Bridge.
+- Cầu Rồng at z = 1.5 keeps its user-approved **three broad wave arches**, dominant central span, tapered raised tail and east-facing plated dragon head with horns, muzzle and whiskers. The body now has thicker gold longitudinal tubes/transverse ribs, opaque darker-gold infill and a dense row of 35 swept dorsal fins (vây lưng), as requested; don't restore the hollow cage or the old five-hump/red-spike cartoon model. Its road owns asphalt, sidewalks, rails and lamps; `noPiers: true` avoids duplicating the four custom piers aligned with the arch feet. Low steel stays in the narrow median; wider head details are above traffic. Night accents are thin LED strips/eyes, not an entirely emissive head.
 - **No Bà Nà/Cầu Vàng** in the current city, despite old README descriptions.
 - Boats stay on the Hàn River. **No motor boats or basket boats at sea.** Mỹ Khê sea agents are jet skis and surfers; colourful kites fly above the beach with strings to people on the sand.
 - Beach agents should remain inside the water/tile, retire at night/in storms and not appear in non-beach cities. Kite sails need front/back faces; surfers remain visible while paddling.
@@ -127,6 +128,8 @@ node scripts/operacheck.mjs &&
 node scripts/officecheck.mjs
 ```
 
+For Đà Nẵng Dragon Bridge changes, also run `node scripts/dragoncheck.mjs` (unchanged wave profile, thicker tubes/ribs, closed opaque infill/outward normals, 35 dorsal fins, east-facing head, aligned piers, straight-lane clearance, finite merged geometry and vertex budget; headless, not visual or intersection collision proof).
+
 For HCMC landmark/layout edits, also run `node scripts/hcmccheck.mjs` (City Hall long/low proportions/seven-bay wings, statue/sidewalk clearance and rotated material frames, attached canal glazing/no floating square panel, Landmark 81 silhouette/mast, preserved podium, exact office-tower relocation and no generated geometry in the civic square).
 
 For façade changes run `node scripts/facadecheck.mjs`; for the Hanoi cathedral/alleys or road-access changes run `node scripts/alleycheck.mjs` as well as the full batch above. For the Hanoi cathedral foreground also run `node scripts/cathedralcheck.mjs`.
@@ -147,6 +150,7 @@ For Hanoi lake-ring path/sidewalk changes also run `node scripts/ringcheck.mjs` 
 | `node scripts/alleycheck.mjs` | Reduced Hanoi cathedral, two narrow lanes/ring junctions, church clearance, motorcycle-only spawning/turn access, finite bike positions and alley speed limit. Existing traffic tests still do not prove collision avoidance. |
 | `node scripts/cathedralcheck.mjs` | Exactly one foreground house reduced to one storey, actual roof height, unchanged other lots/trees/dynamic roofs compared with the same layout without the floor limit, finite Regina Pacis geometry contained on the forecourt and balanced nested transforms. Headless — no rendered visibility proof. |
 | `node scripts/boundscheck.mjs` | Exact edge intersections/interpolated heights, disconnected route fragments, closed inside loops, actual road/sidewalk/promenade geometry and full boat hulls at both route ends/directions/drift/wave levels. |
+| `node scripts/dragoncheck.mjs` | Cầu Rồng unchanged three-arch wave/dominant center, thicker chords/39 ribs, closed infill/outward normals, 35 dorsal fins, short neck/east-facing head, four aligned piers, thin night strips, straight-lane clearance, finite merge/balanced translated frames and <12k vertices. Not rendered appearance or intersection collision proof. |
 | `node scripts/bridgecheck.mjs` | Chương Dương northward placement and road connections; actual flat chords, triangular side webs, overhead X braces, sloping portals, lane/head clearance, bounded finite geometry and lamp rows. Headless — not rendered appearance or full traffic collision proof. |
 | `node scripts/ringcheck.mjs` | Hanoi ring/asphalt/sidewalk contours have no self-crossings and enough bend radius; actual northeast sidewalk triangles stay out of asphalt; smooth non-reversing bidirectional road motion for four vehicle types at three frame rates. Does not prove multi-vehicle collision avoidance. |
 | `node scripts/raincheck.mjs` | Rain uniform tuning: mobile/desktop drizzle streaks present, screen-pixel width clamp, heavy rain denser/faster/longer/more opaque, monotonic `uTravel`, splash rings. Headless — no rendered pixels. |

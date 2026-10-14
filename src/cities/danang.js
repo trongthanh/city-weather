@@ -41,7 +41,7 @@ export default {
         { name: 'Bạch Đằng', path: west, trees: 3.2, treeKind: 'palm', frontageSide: 1 },
         { name: 'Trần Hưng Đạo', path: east, trees: 3.2, treeKind: 'palm', frontageSide: -1 },
         { name: 'Võ Nguyên Giáp', pts: [[9.4, -22], [9.4, 22]], smooth: false, trees: 2.8, treeKind: 'palm', frontageSide: 1 },
-        { name: 'Cầu Rồng', pts: [[-22, 1.5], [9.4, 1.5]], smooth: false, hw: 1.25 },
+        { name: 'Cầu Rồng', pts: [[-22, 1.5], [9.4, 1.5]], smooth: false, hw: 1.25, noPiers: true },
         { name: 'Cầu sông Hàn', pts: [[-22, -12], [9.4, -12]], smooth: false },
         { pts: [[-14, -22], [-14, 22]], smooth: false, hw: 1.0 },
         { name: 'Cầu Trần Thị Lý', pts: [[-22, 11.5], [9.4, 11.5]], smooth: false, hw: 1.15 },
@@ -53,7 +53,7 @@ export default {
         { pts: Array.from({ length: 23 }, (_, i) => { const z = -14 + i * 1.6; return [coast(z) - BEACH * 0.3, z]; }), paved: false },
       ],
       landmarks: [
-        { type: 'dragonBridge', x0: rx(1.5) - 3.0, x1: rx(1.5) + 2.8, z: 1.5 },
+        { type: 'dragonBridge', x0: rx(1.5) - 3.8, x1: rx(1.5) + 3.7, z: 1.5 },
         { type: 'hanRiverBridge', x: rx(-12), z: -12 },
         { type: 'tranThiLyBridge', x: rx(11.5), z: 11.5 },
         { type: 'linhUng', x: 18.8, z: -19.4, ry: Math.PI / 2, footprint: { type: 'circle', r: 4.2, x: 17.4, z: -19.4 } },
