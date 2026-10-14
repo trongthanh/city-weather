@@ -14,7 +14,7 @@ export default {
   lat: 10.7769, lon: 106.7009,
   timezone: 'Asia/Ho_Chi_Minh',
   waterColor: '#6aaec4',
-  camera: { azimuth: 20, elevation: 38, span: [58, 54], targetY: 12.5 },
+  camera: { azimuth: 20, elevation: 38, span: [58, 44], targetY: 2.5 },
   palette: { ...BASE_PALETTE, tileRoof: 0.35 },
   parkTreeDensity: 0.85,
   scatterTreeDensity: 0.6,
